@@ -9,12 +9,13 @@ import (
 )
 
 // step-1 parse key value pairs
-// parser should take care of single quotes
+// parser should take care of single quotes, double quotes and ticks
 
 func envParser(file string) map[string]string {
 	envVars := make(map[string]string)
 	var key, value strings.Builder
 	isWithinQuotes := false
+	quoteRune := rune(-1)
 	isKey := true
 	isEnd := false
 
@@ -28,10 +29,23 @@ func envParser(file string) map[string]string {
 			isEnd = false
 		}
 
-		for i, ch := range line {
+		for _, ch := range line {
 			switch ch {
-			case '\'':
-				isWithinQuotes = !isWithinQuotes
+			case '\'', '"', '`':
+				if !isWithinQuotes {
+					quoteRune = ch
+					isWithinQuotes = true
+				} else if quoteRune == ch {
+					isWithinQuotes = false
+				} else {
+					if isKey {
+						fmt.Println("Invalid file format, quotes in key")
+						fmt.Println("State: ", envVars)
+						panic("Error")
+					} else {
+						value.WriteRune(ch)
+					}
+				}
 			case '#':
 				if !isWithinQuotes {
 					isEnd = true
@@ -47,7 +61,7 @@ func envParser(file string) map[string]string {
 					if key.String() != "" && isKey {
 						isKey = false
 					} else {
-						fmt.Println("Invalid file format, error in line ", i)
+						fmt.Println("Invalid file format, error")
 						fmt.Println("State: ", envVars)
 						panic("Error")
 					}
@@ -63,7 +77,7 @@ func envParser(file string) map[string]string {
 					isEnd = true
 				} else {
 					if isKey {
-						fmt.Println("Invalid file format, error in line ", i)
+						fmt.Println("Invalid file format, error")
 						fmt.Println("State: ", envVars)
 						panic("Error")
 					} else {
@@ -98,7 +112,6 @@ func openFile(fileName string) string {
 
 func tostring(envmap map[string]string) {
 	for key, val := range envmap {
-		fmt.Println("Value lines: ", len(strings.Split(val, "\n")))
 		fmt.Printf("\t%s ...... %s\n", key, val)
 	}
 }
@@ -107,8 +120,9 @@ func runTests(testNum int) {
 	for i := range testNum {
 		file := fmt.Sprintf(".env_%d", i+1)
 		envFile := openFile(path.Join(dir, file))
-		fmt.Printf("Test %d results:\n", i+1)
+		fmt.Printf("***************************************\nTest %d results:\n", i+1)
 		tostring(envParser(envFile))
+		fmt.Print("**************************************\n\n")
 	}
 }
 
