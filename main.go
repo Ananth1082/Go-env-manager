@@ -8,8 +8,40 @@ import (
 	"strings"
 )
 
+type ENVMap map[string]string
+
 // step-1 parse key value pairs
 // parser should take care of single quotes, double quotes and ticks
+
+func subValues(str string, env ENVMap) string {
+	start, open, close := 0, 0, 0
+	variable := ""
+	n := len(str)
+	for start < n {
+		open = strings.Index(str[start:], "${")
+		if open == -1 {
+			// no '${' found hence come out of loop
+			break
+		}
+		open += start + 2
+		close = strings.Index(str[open:], "}")
+		if close == -1 {
+			//no '}' found hence come out of loop
+			break
+		}
+		close += open
+		variable = str[open:close]
+		val := env[variable]
+		if val == "" {
+			errMsg := fmt.Sprintf("Error: undefined varaible %s", variable)
+			panic(errMsg)
+		} else {
+			str = str[:open-2] + val + str[close+1:]
+		}
+		start = close + 1
+	}
+	return str
+}
 
 func envParser(file string) map[string]string {
 	envVars := make(map[string]string)
@@ -37,6 +69,12 @@ func envParser(file string) map[string]string {
 					isWithinQuotes = true
 				} else if quoteRune == ch {
 					isWithinQuotes = false
+					quoteRune = rune(-1)
+					if ch == '"' || ch == '`' {
+						newVal := subValues(value.String(), envVars)
+						value.Reset()
+						value.WriteString(newVal)
+					}
 				} else {
 					if isKey {
 						fmt.Println("Invalid file format, quotes in key")
@@ -131,4 +169,5 @@ func main() {
 	num, _ := strconv.Atoi(numStr)
 	fmt.Println("num: ", num)
 	runTests(num)
+	// fmt.Println(subValues("welcome ${name}", ENVMap{"name": "Ananth"}))
 }
