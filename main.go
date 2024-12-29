@@ -11,7 +11,7 @@ import (
 type ENVMap map[string]string
 
 // step-1 parse key value pairs
-// parser should take care of single quotes, double quotes and ticks
+// sub without quotes
 
 func subValues(str string, env ENVMap) string {
 	start, open, close := 0, 0, 0
@@ -134,7 +134,7 @@ func envParser(file string) map[string]string {
 			}
 		}
 		if !isWithinQuotes && key.String() != "" {
-			envVars[key.String()] = value.String()
+			envVars[key.String()] = subValues(value.String(), envVars)
 		}
 	}
 	return envVars
