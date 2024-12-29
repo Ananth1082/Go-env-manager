@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -13,22 +14,24 @@ import (
 func envParser(file string) map[string]string {
 	envVars := make(map[string]string)
 	var key, value strings.Builder
+	isWithinQuotes := false
+	isKey := true
+	isEnd := false
 
-	for _, line := range strings.Split(file, "\n") {
-		key.Reset()
-		value.Reset()
-		isKey := true
-		isEnd := false
-		isWithinQuotes := false
+	for _, line := range strings.SplitAfter(file, "\n") {
+
+		if !isWithinQuotes {
+			isWithinQuotes = false
+			key.Reset()
+			value.Reset()
+			isKey = true
+			isEnd = false
+		}
 
 		for i, ch := range line {
 			switch ch {
 			case '\'':
-				if isWithinQuotes {
-					isWithinQuotes = false
-				} else {
-					isWithinQuotes = true
-				}
+				isWithinQuotes = !isWithinQuotes
 			case '#':
 				if !isWithinQuotes {
 					isEnd = true
@@ -60,9 +63,11 @@ func envParser(file string) map[string]string {
 					isEnd = true
 				} else {
 					if isKey {
-						key.WriteRune(ch)
+						fmt.Println("Invalid file format, error in line ", i)
+						fmt.Println("State: ", envVars)
+						panic("Error")
 					} else {
-						value.WriteRune(ch)
+						value.WriteRune('\n')
 					}
 				}
 			default:
@@ -76,7 +81,7 @@ func envParser(file string) map[string]string {
 				break
 			}
 		}
-		if key.String() != "" {
+		if !isWithinQuotes && key.String() != "" {
 			envVars[key.String()] = value.String()
 		}
 	}
@@ -90,15 +95,26 @@ func openFile(fileName string) string {
 	}
 	return string(content)
 }
+
+func tostring(envmap map[string]string) {
+	for key, val := range envmap {
+		fmt.Println("Value lines: ", len(strings.Split(val, "\n")))
+		fmt.Printf("\t%s ...... %s\n", key, val)
+	}
+}
 func runTests(testNum int) {
 	dir := "test"
 	for i := range testNum {
 		file := fmt.Sprintf(".env_%d", i+1)
 		envFile := openFile(path.Join(dir, file))
-		fmt.Printf("Test %d results: %s\n", i+1, envParser(envFile))
+		fmt.Printf("Test %d results:\n", i+1)
+		tostring(envParser(envFile))
 	}
 }
 
 func main() {
-	runTests(1)
+	numStr := os.Args[1]
+	num, _ := strconv.Atoi(numStr)
+	fmt.Println("num: ", num)
+	runTests(num)
 }
