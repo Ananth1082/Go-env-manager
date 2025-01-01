@@ -8,11 +8,16 @@ import (
 	"strings"
 )
 
+// Loads the env variables from an env file
+// supports use of quotes, double quotes, backticks, and variable substituion
 func LoadEnv(fileName string) {
 	cnt := openFile(fileName)
 	envParser(cnt)
 }
 
+// Binds a pointer varaible to env varaibles. The assignment is done based on the value provided in
+// the field tag 'env'
+// example: cat struct{foo string `env:"FOO"`} gets its field foo binded to the varaible 'FOO' 's value
 func BindEnv(envStructPtr interface{}) {
 	// the varaible provided must be a struct ptr
 
