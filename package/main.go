@@ -1,17 +1,17 @@
-package main
+package env_manager
 
 import (
 	"fmt"
 	"os"
-	"path"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
-type ENVMap map[string]string
-
-var EnvVars ENVMap = ENVMap{"user": "admin", "password": "admin123"}
+func LoadEnv(fileName string) {
+	cnt := openFile(fileName)
+	envParser(cnt)
+}
 
 func BindEnv(envStructPtr interface{}) {
 	// the varaible provided must be a struct ptr
@@ -27,15 +27,28 @@ func BindEnv(envStructPtr interface{}) {
 		field := envStruct.Field(i)
 		envVarName := field.Tag.Get("env")
 		if envVarName != "" {
-			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.ValueOf(EnvVars[envVarName]))
-		} else {
-			errMsg := fmt.Sprintf("error: env variable %s not found", envVarName)
-			panic(errMsg)
+			valStr := os.Getenv(envVarName)
+			if valStr != "" {
+				switch envStruct.Field(i).Type.Kind() {
+				case reflect.String:
+					reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.ValueOf(valStr))
+				case reflect.Int:
+					valInt, err := strconv.Atoi(valStr)
+					if err != nil {
+						errMsg := fmt.Sprintf("error: env variable %s is not a integer", envVarName)
+						panic(errMsg)
+					}
+					reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.ValueOf(valInt))
+				}
+			} else {
+				errMsg := fmt.Sprintf("error: env variable %s not found", envVarName)
+				panic(errMsg)
+			}
 		}
 	}
 }
 
-func subValues(str string, env ENVMap) string {
+func subValues(str string) string {
 	start, open, close := 0, 0, 0
 	variable := ""
 	n := len(str)
@@ -53,7 +66,7 @@ func subValues(str string, env ENVMap) string {
 		}
 		close += open
 		variable = str[open:close]
-		val := env[variable]
+		val := os.Getenv(variable)
 		if val == "" {
 			errMsg := fmt.Sprintf("Error: undefined varaible %s", variable)
 			panic(errMsg)
@@ -65,8 +78,7 @@ func subValues(str string, env ENVMap) string {
 	return str
 }
 
-func envParser(file string) map[string]string {
-	envVars := make(map[string]string)
+func envParser(file string) {
 	var key, value strings.Builder
 	isWithinQuotes := false
 	quoteRune := rune(-1)
@@ -94,7 +106,6 @@ func envParser(file string) map[string]string {
 				} else {
 					if isKey {
 						fmt.Println("Invalid file format, quotes in key")
-						fmt.Println("State: ", envVars)
 						panic("Error")
 					} else {
 						value.WriteRune(ch)
@@ -116,7 +127,6 @@ func envParser(file string) map[string]string {
 						isKey = false
 					} else {
 						fmt.Println("Invalid file format, error")
-						fmt.Println("State: ", envVars)
 						panic("Error")
 					}
 				} else {
@@ -132,7 +142,6 @@ func envParser(file string) map[string]string {
 				} else {
 					if isKey {
 						fmt.Println("Invalid file format, error")
-						fmt.Println("State: ", envVars)
 						panic("Error")
 					} else {
 						value.WriteRune('\n')
@@ -151,13 +160,12 @@ func envParser(file string) map[string]string {
 		}
 		if !isWithinQuotes && key.String() != "" {
 			if quoteRune == '\'' {
-				envVars[key.String()] = value.String()
+				os.Setenv(key.String(), value.String())
 			} else {
-				envVars[key.String()] = subValues(value.String(), envVars)
+				os.Setenv(key.String(), subValues(value.String()))
 			}
 		}
 	}
-	return envVars
 }
 
 func openFile(fileName string) string {
@@ -166,34 +174,4 @@ func openFile(fileName string) string {
 		panic(err)
 	}
 	return string(content)
-}
-
-func tostring(envmap map[string]string) {
-	for key, val := range envmap {
-		fmt.Printf("\t%s ...... %s\n", key, val)
-	}
-}
-
-func runTests(testNum int) {
-	dir := "test"
-	for i := range testNum {
-		file := fmt.Sprintf(".env_%d", i+1)
-		envFile := openFile(path.Join(dir, file))
-		fmt.Printf("***************************************\nTest %d results:\n", i+1)
-		tostring(envParser(envFile))
-		fmt.Print("**************************************\n\n")
-	}
-}
-
-func main() {
-	numStr := os.Args[1]
-	num, _ := strconv.Atoi(numStr)
-	fmt.Println("num: ", num)
-	// runTests(num)
-	a := new(struct {
-		User     string `env:"user"`
-		Password string `env:"password"`
-	})
-	BindEnv(a)
-	fmt.Println(a)
 }
