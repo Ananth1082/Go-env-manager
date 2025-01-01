@@ -4,14 +4,36 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"reflect"
 	"strconv"
 	"strings"
 )
 
 type ENVMap map[string]string
 
-// step-1 parse key value pairs
-// sub without quotes
+var EnvVars ENVMap = ENVMap{"user": "admin", "password": "admin123"}
+
+func BindEnv(envStructPtr interface{}) {
+	// the varaible provided must be a struct ptr
+
+	varType := reflect.TypeOf(envStructPtr)
+	if varType.Kind() != reflect.Pointer || varType.Elem().Kind() != reflect.Struct {
+		panic("Invalid type of varaible")
+	}
+
+	envStruct := varType.Elem()
+	// loop on each field of struct
+	for i := range envStruct.NumField() {
+		field := envStruct.Field(i)
+		envVarName := field.Tag.Get("env")
+		if envVarName != "" {
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.ValueOf(EnvVars[envVarName]))
+		} else {
+			errMsg := fmt.Sprintf("error: env variable %s not found", envVarName)
+			panic(errMsg)
+		}
+	}
+}
 
 func subValues(str string, env ENVMap) string {
 	start, open, close := 0, 0, 0
@@ -69,12 +91,6 @@ func envParser(file string) map[string]string {
 					isWithinQuotes = true
 				} else if quoteRune == ch {
 					isWithinQuotes = false
-					quoteRune = rune(-1)
-					if ch == '"' || ch == '`' {
-						newVal := subValues(value.String(), envVars)
-						value.Reset()
-						value.WriteString(newVal)
-					}
 				} else {
 					if isKey {
 						fmt.Println("Invalid file format, quotes in key")
@@ -85,14 +101,14 @@ func envParser(file string) map[string]string {
 					}
 				}
 			case '#':
-				if !isWithinQuotes {
-					isEnd = true
-				} else {
+				if isWithinQuotes {
 					if isKey {
 						key.WriteRune(ch)
 					} else {
 						value.WriteRune(ch)
 					}
+				} else {
+					isEnd = true
 				}
 			case '=':
 				if !isWithinQuotes {
@@ -134,7 +150,11 @@ func envParser(file string) map[string]string {
 			}
 		}
 		if !isWithinQuotes && key.String() != "" {
-			envVars[key.String()] = subValues(value.String(), envVars)
+			if quoteRune == '\'' {
+				envVars[key.String()] = value.String()
+			} else {
+				envVars[key.String()] = subValues(value.String(), envVars)
+			}
 		}
 	}
 	return envVars
@@ -153,6 +173,7 @@ func tostring(envmap map[string]string) {
 		fmt.Printf("\t%s ...... %s\n", key, val)
 	}
 }
+
 func runTests(testNum int) {
 	dir := "test"
 	for i := range testNum {
@@ -168,6 +189,11 @@ func main() {
 	numStr := os.Args[1]
 	num, _ := strconv.Atoi(numStr)
 	fmt.Println("num: ", num)
-	runTests(num)
-	// fmt.Println(subValues("welcome ${name}", ENVMap{"name": "Ananth"}))
+	// runTests(num)
+	a := new(struct {
+		User     string `env:"user"`
+		Password string `env:"password"`
+	})
+	BindEnv(a)
+	fmt.Println(a)
 }
