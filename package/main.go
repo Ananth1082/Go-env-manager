@@ -3,6 +3,7 @@ package env_manager
 import (
 	"fmt"
 	"log"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -16,16 +17,19 @@ const (
 	STRUCT_TAG_DEFAULT_VALUE = "env_def"
 	STRUCT_TAG_DELIMITER     = "env_delim"
 	STRUCT_TAG_PREFIX        = "env_prefix"
+	STRUCT_TAG_KEYS          = "env_keys"
 )
 
 const (
 	STRUCT_KEYWORD_IGNORE = "ignore"
+	STRUCT_KEYWORD_ALL    = "*"
 )
 
 // EnvManager is a struct that holds the file name and silent mode
 // It is used to manage environment variables from a file
 type EnvManager struct {
 	File   string
+	EnvMap map[string]string
 	Silent bool
 }
 
@@ -50,10 +54,8 @@ func (e *EnvManager) GetEnvMap() map[string]string {
 // Loads the env variables from an env file
 // supports use of quotes, double quotes, backticks, and variable substituion
 func (e *EnvManager) LoadEnv() {
-	content := openFile(e.File)
-	envMap := envParser(content)
-
-	loadEnvMap(envMap)
+	e.EnvMap = e.GetEnvMap()
+	loadEnvMap(e.EnvMap)
 }
 
 // Binds a pointer varaible to env varaibles. The assignment is done based on the value provided in
@@ -74,6 +76,47 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 		envTag := strings.Split(field.Tag.Get(STRUCT_TAG_ENV), ",")
 
 		if slices.Contains(envTag, STRUCT_KEYWORD_IGNORE) {
+			continue
+		}
+		//TODO: fix the map implementation
+		if field.Type.Kind() == reflect.Map {
+			keys := field.Tag.Get(STRUCT_TAG_KEYS)
+			if keys == "" {
+				panic(fmt.Sprintf("error: map field %s must have env_keys tag", field.Name))
+			}
+			var keysList []string
+			delim := getDelim(field)
+			if keys == STRUCT_KEYWORD_ALL {
+				keysList = slices.Collect(maps.Keys(e.EnvMap))
+			} else {
+				keysList = strings.Split(keys, delim)
+				if len(keysList) == 0 {
+					panic(fmt.Sprintf("error: map field %s must have at least one key in env_keys tag", field.Name))
+				}
+			}
+
+			mapValue := reflect.MakeMap(field.Type)
+			fmt.Println("keysList: ", keysList)
+			for _, key := range keysList {
+				key = strings.TrimSpace(key)
+				if key == "" {
+					panic(fmt.Sprintf("error: empty key in env_keys tag for field %s", field.Name))
+				}
+				val := os.Getenv(key)
+				if val == "" {
+					val = field.Tag.Get(STRUCT_TAG_DEFAULT_VALUE)
+					if val == "" {
+						panic(fmt.Sprintf("error: env variable %s not found", key))
+					}
+				}
+				elemValue, err := castString(val, field.Type.Elem(), delim)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				mapValue.SetMapIndex(reflect.ValueOf(key), elemValue)
+			}
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(mapValue)
 			continue
 		}
 
@@ -97,16 +140,32 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
 			}
 		} else if field.Type.Kind() == reflect.Slice {
-			delim := field.Tag.Get(STRUCT_TAG_DELIMITER)
-			if delim == "" {
-				delim = ","
-			}
+			delim := getDelim(field)
 			if value, err := castStringToSlice(valStr, field.Type.Elem(), delim); err != nil {
 				log.Println(err)
 			} else {
 				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
 			}
+		} else {
+			panic(fmt.Sprintf("error: type %s not supported", field.Type.Kind()))
 		}
+	}
+}
+
+func castString(value string, target reflect.Type, delim string) (reflect.Value, error) {
+	var castValue reflect.Value
+	var err error
+	if isPrimitive(target) {
+		castValue, err = castStringToPrimitive(value, target)
+	} else if target.Kind() == reflect.Slice {
+		castValue, err = castStringToSlice(value, target.Elem(), delim)
+	} else {
+		panic(fmt.Sprintf("error: type %s not supported", target.Kind()))
+	}
+	if err != nil {
+		return reflect.Value{}, err
+	} else {
+		return castValue, nil
 	}
 }
 
@@ -364,4 +423,12 @@ func isPrimitive(t reflect.Type) bool {
 	default:
 		return false
 	}
+}
+
+func getDelim(field reflect.StructField) string {
+	delim := field.Tag.Get(STRUCT_TAG_DELIMITER)
+	if delim == "" {
+		delim = ","
+	}
+	return delim
 }
