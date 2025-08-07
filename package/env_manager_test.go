@@ -33,7 +33,7 @@ func TestGetEnvMapForComplexFile(t *testing.T) {
 	envManger := NewEnvManager("../test_data/complex.env")
 	envMap := envManger.GetEnvMap()
 
-	assertEqual(t, len(envMap), 21, "Invalid number of env variables parsed")
+	assertEqual(t, len(envMap), 22, "Invalid number of env variables parsed")
 	assertEqual(t, envMap["APP_NAME"], "MultiLineApp", "Invalid value for variable APP_NAME from env")
 
 	assertEqual(t, envMap["WELCOME_MESSAGE"], `Welcome to $APP_NAME!

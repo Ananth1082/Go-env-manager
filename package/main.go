@@ -5,8 +5,10 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 const (
@@ -14,7 +16,10 @@ const (
 	STRUCT_TAG_DEFAULT_VALUE = "env_def"
 	STRUCT_TAG_DELIMITER     = "env_delim"
 	STRUCT_TAG_PREFIX        = "env_prefix"
-	STRUCT_TAG_IGNORE        = "env_ignore"
+)
+
+const (
+	STRUCT_KEYWORD_IGNORE = "ignore"
 )
 
 // EnvManager is a struct that holds the file name and silent mode
@@ -66,15 +71,37 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 	// loop on each field of struct
 	for i := range envStructType.NumField() {
 		field := envStructType.Field(i)
-		envVarName := field.Tag.Get(STRUCT_TAG_ENV)
-		if envVarName != "" {
-			valStr := os.Getenv(envVarName)
-			if valStr == "" {
-				if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
-					panic(fmt.Sprintf("error: env variable %s not found", envVarName))
-				}
+		envTag := strings.Split(field.Tag.Get(STRUCT_TAG_ENV), ",")
+
+		if slices.Contains(envTag, STRUCT_KEYWORD_IGNORE) {
+			continue
+		}
+
+		envVarName := getNameFromTag(envTag)
+
+		//fallback to pascale to snake case if no env tag is provided
+		if envVarName == "" {
+			envVarName = pascaleToSSnakeCase(field.Name)
+		}
+
+		valStr := os.Getenv(envVarName)
+		if valStr == "" {
+			if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
+				panic(fmt.Sprintf("error: env variable %s not found", envVarName))
 			}
-			if value, err := castString(valStr, field.Type, field.Tag.Get(STRUCT_TAG_DELIMITER)); err != nil {
+		}
+		if isPrimitive(field.Type) {
+			if value, err := castStringToPrimitive(valStr, field.Type); err != nil {
+				log.Println(err)
+			} else {
+				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
+			}
+		} else if field.Type.Kind() == reflect.Slice {
+			delim := field.Tag.Get(STRUCT_TAG_DELIMITER)
+			if delim == "" {
+				delim = ","
+			}
+			if value, err := castStringToSlice(valStr, field.Type.Elem(), delim); err != nil {
 				log.Println(err)
 			} else {
 				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
@@ -83,7 +110,21 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 	}
 }
 
-func castString(value string, target reflect.Type, delim string) (reflect.Value, error) {
+func castStringToSlice(value string, targetElement reflect.Type, delim string) (reflect.Value, error) {
+	parts := strings.Split(value, delim)
+	slice := reflect.MakeSlice(reflect.SliceOf(targetElement), len(parts), len(parts))
+	for i, part := range parts {
+		part = strings.TrimSpace(part)
+		elemValue, elemErr := castStringToPrimitive(part, targetElement)
+		if elemErr != nil {
+			return reflect.Value{}, elemErr
+		}
+		slice.Index(i).Set(elemValue)
+	}
+	return slice, nil
+}
+
+func castStringToPrimitive(value string, target reflect.Type) (reflect.Value, error) {
 	var err error
 	var castValue any
 
@@ -122,25 +163,6 @@ func castString(value string, target reflect.Type, delim string) (reflect.Value,
 		castValue, err = strconv.ParseFloat(value, 32)
 	case reflect.Float64:
 		castValue, err = strconv.ParseFloat(value, 64)
-	case reflect.Array, reflect.Slice:
-		// delimter if not provided is ','
-		if delim == "" {
-			delim = ","
-		}
-		// split the string by the delimiter and convert each part to the target type
-		parts := strings.Split(value, delim)
-		slice := reflect.MakeSlice(reflect.SliceOf(reflect.TypeOf(value)), len(parts), len(parts))
-		for i, part := range parts {
-			part = strings.TrimSpace(part)
-			elemValue, elemErr := castString(part, target.Elem(), delim)
-			if elemErr != nil {
-				return reflect.Value{}, elemErr
-			}
-			slice.Index(i).Set(elemValue)
-		}
-		return slice, nil
-	case reflect.Chan, reflect.Func:
-	// ignored
 	default:
 		err = fmt.Errorf("error: type %s not supported", target.Kind())
 	}
@@ -295,4 +317,51 @@ func loadEnvMap(envMap map[string]string) {
 		}
 	}
 
+}
+
+func getNameFromTag(tags []string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	for _, part := range tags {
+		if part != "" && !isKeyWord(part) {
+			return part
+		}
+	}
+	return ""
+}
+
+func isKeyWord(tagEntry string) bool {
+	switch tagEntry {
+	case STRUCT_KEYWORD_IGNORE:
+		return true
+	default:
+		return false
+	}
+}
+
+func pascaleToSSnakeCase(str string) string {
+	var result strings.Builder
+	for i, ch := range str {
+		if unicode.IsUpper(ch) && i > 0 {
+			result.WriteRune('_')
+		}
+		result.WriteRune(unicode.ToUpper(ch))
+	}
+	return result.String()
+}
+
+// IsPrimitive checks whether the type is a Go primitive type.
+func isPrimitive(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128,
+		reflect.String:
+		return true
+	default:
+		return false
+	}
 }
