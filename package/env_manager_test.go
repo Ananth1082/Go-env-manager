@@ -50,7 +50,7 @@ email TEXT UNIQUE NOT NULL
 }
 
 type EnvData struct {
-	AppName  string            `env:"APP_NAME"`
+	AppName  *string           `env:"APP_NAME"`
 	Version  string            `env:"VERSION"`
 	Options  []string          `env:"OPTIONS" env_delim:","`
 	AppCount int               `env:"APP_COUNT" env_def:"69"`
@@ -65,7 +65,7 @@ func TestBindEnvForSimpleStruct(t *testing.T) {
 	envManger.LoadEnv()
 
 	envManger.BindEnv(envBinder)
-	assertEqual(t, envBinder.AppName, "MultiLineApp", "Invalid AppName")
+	assertEqual(t, *envBinder.AppName, "MultiLineApp", "Invalid AppName")
 	assertEqual(t, envBinder.Version, "1.0.0", "Invalid Version")
 	assertCondition(t, slices.Equal(envBinder.Options, []string{"min", "med", "max"}), "Invalid Options")
 	assertEqual(t, envBinder.AppCount, 69, "Invalid AppCount")

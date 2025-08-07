@@ -96,7 +96,6 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 			}
 
 			mapValue := reflect.MakeMap(field.Type)
-			fmt.Println("keysList: ", keysList)
 			for _, key := range keysList {
 				key = strings.TrimSpace(key)
 				if key == "" {
@@ -130,7 +129,13 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 		valStr := os.Getenv(envVarName)
 		if valStr == "" {
 			if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
-				panic(fmt.Sprintf("error: env variable %s not found", envVarName))
+				if field.Type.Kind() == reflect.Pointer {
+					// if the field is a pointer type, we can set it to nil
+					reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.Zero(field.Type))
+					continue
+				} else {
+					panic(fmt.Sprintf("error: env variable %s not found", envVarName))
+				}
 			}
 		}
 		if isPrimitive(field.Type) {
@@ -145,6 +150,14 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 				log.Println(err)
 			} else {
 				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
+			}
+		} else if field.Type.Kind() == reflect.Pointer {
+			if value, err := castString(valStr, field.Type.Elem(), ""); err != nil {
+				log.Println(err)
+			} else {
+				ptrValue := reflect.New(field.Type.Elem())
+				ptrValue.Elem().Set(value)
+				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(ptrValue)
 			}
 		} else {
 			panic(fmt.Sprintf("error: type %s not supported", field.Type.Kind()))
