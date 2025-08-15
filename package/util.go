@@ -90,10 +90,3 @@ func getDelim(field reflect.StructField) string {
 	}
 	return delim
 }
-
-func getEnvValue(prefix, key string) (string, string) {
-	if prefix != "" {
-		key = prefix + "_" + key
-	}
-	return key, os.Getenv(key)
-}

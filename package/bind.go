@@ -59,6 +59,7 @@ func (e *EnvManager) LoadEnv() {
 // the field tag 'env'
 // example: cat struct{foo string `env:"FOO"`} gets its field foo binded to the varaible 'FOO' 's value
 func (e *EnvManager) BindEnv(envStructPtr any) {
+	e.Logger.Println("Binding environment variable")
 	e.bindEnvWithPrefix(envStructPtr, "")
 }
 
@@ -123,7 +124,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 
 	envVarName := getNameFromTag(envTag, field.Name)
 
-	key, valStr := getEnvValue(fieldPrefix, envVarName)
+	key, valStr := e.getEnvValue(fieldPrefix, envVarName)
 	if valStr == "" {
 		if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
 			if fieldType.Kind() == reflect.Pointer {
@@ -191,7 +192,7 @@ func (e *EnvManager) CastMap(field reflect.StructField, fieldPrefix string) (ref
 		if key == "" {
 			return emptyValue, NewNoKeysForMapErr(field.Name)
 		}
-		key, val := getEnvValue(fieldPrefix, key)
+		key, val := e.getEnvValue(fieldPrefix, key)
 		if val == "" {
 			val = field.Tag.Get(STRUCT_TAG_DEFAULT_VALUE)
 			if val == "" {
@@ -212,4 +213,12 @@ func (e *EnvManager) SetField(i int, key string, ptr any, value reflect.Value) {
 	field := reflect.ValueOf(ptr).Elem().Field(i)
 	e.Logger.Println("SET", key)
 	field.Set(value)
+}
+
+func (e *EnvManager) getEnvValue(prefix, key string) (string, string) {
+	if prefix != "" {
+		key = prefix + "_" + key
+	}
+	e.Logger.Println("Accessed environment varaible", prefix)
+	return key, os.Getenv(key)
 }
