@@ -27,7 +27,8 @@ const (
 type EnvManager struct {
 	File   string
 	EnvMap map[string]string
-	Silent bool
+	Global bool // flag to access all env variables
+	Silent bool // show verbose error
 }
 
 func NewEnvManager(file string) *EnvManager {
@@ -45,7 +46,6 @@ func NewEnvManager(file string) *EnvManager {
 func (e *EnvManager) GetEnvMap() map[string]string {
 	content := openFile(e.File)
 	return envParser(content)
-
 }
 
 // Loads the env variables from an env file
@@ -59,8 +59,11 @@ func (e *EnvManager) LoadEnv() {
 // the field tag 'env'
 // example: cat struct{foo string `env:"FOO"`} gets its field foo binded to the varaible 'FOO' 's value
 func (e *EnvManager) BindEnv(envStructPtr any) {
-	// the varaible provided must be a struct ptr
+	e.BindEnvWithPrefix(envStructPtr, "")
+}
 
+func (e *EnvManager) BindEnvWithPrefix(envStructPtr any, prefix string) {
+	// the varaible provided must be a struct ptr
 	varType := reflect.TypeOf(envStructPtr)
 	if varType.Kind() != reflect.Pointer || varType.Elem().Kind() != reflect.Struct {
 		panic("Invalid type of varaible: must be a pointer to a struct")
@@ -70,11 +73,20 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 	// loop on each field of struct
 	for i := range envStructType.NumField() {
 		field := envStructType.Field(i)
+		fieldType := field.Type
 		envTag := strings.Split(field.Tag.Get(STRUCT_TAG_ENV), ",")
+		fieldPrefix := prefix
+		if field.Tag.Get(STRUCT_TAG_PREFIX) != "" {
+			if fieldPrefix != "" {
+				fieldPrefix += "_"
+			}
+			fieldPrefix += field.Tag.Get(STRUCT_TAG_PREFIX)
+		}
 
 		if slices.Contains(envTag, STRUCT_KEYWORD_IGNORE) {
 			continue
 		}
+
 		//TODO: fix the map implementation
 		if field.Type.Kind() == reflect.Map {
 			keys := field.Tag.Get(STRUCT_TAG_KEYS)
@@ -86,9 +98,9 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 			delim := getDelim(field)
 
 			if strings.HasSuffix(keys, "*") {
-				prefix := strings.TrimSuffix(keys, "*")
+				keyPrefix := strings.TrimSuffix(keys, "*")
 				for key := range e.EnvMap {
-					if strings.HasPrefix(key, prefix) {
+					if strings.HasPrefix(key, keyPrefix) {
 						keysList = append(keysList, key)
 					}
 				}
@@ -101,11 +113,10 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 
 			mapValue := reflect.MakeMap(field.Type)
 			for _, key := range keysList {
-				key = strings.TrimSpace(key)
 				if key == "" {
 					panic(fmt.Sprintf("error: empty key in env_keys tag for field %s", field.Name))
 				}
-				val := os.Getenv(key)
+				key, val := getEnvValue(fieldPrefix, key)
 				if val == "" {
 					val = field.Tag.Get(STRUCT_TAG_DEFAULT_VALUE)
 					if val == "" {
@@ -121,11 +132,21 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 			}
 			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(mapValue)
 			continue
+		} else if fieldType.Kind() == reflect.Struct {
+			structPtr := reflect.New(fieldType)
+			e.BindEnvWithPrefix(structPtr.Interface(), fieldPrefix)
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(structPtr.Elem())
+			continue
+		} else if fieldType.Kind() == reflect.Pointer && fieldType.Elem().Kind() == reflect.Struct {
+			structPtr := reflect.New(fieldType.Elem())
+			e.BindEnvWithPrefix(structPtr.Interface(), fieldPrefix)
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(structPtr)
+			continue
 		}
 
 		envVarName := getNameFromTag(envTag, field.Name)
 
-		valStr := os.Getenv(envVarName)
+		key, valStr := getEnvValue(fieldPrefix, envVarName)
 		if valStr == "" {
 			if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
 				if field.Type.Kind() == reflect.Pointer {
@@ -133,7 +154,7 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 					reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.Zero(field.Type))
 					continue
 				} else {
-					panic(fmt.Sprintf("error: env variable %s not found", envVarName))
+					panic(fmt.Sprintf("error: env variable %s not found", key))
 				}
 			}
 		}

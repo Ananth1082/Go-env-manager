@@ -33,7 +33,7 @@ func TestGetEnvMapForComplexFile(t *testing.T) {
 	envManger := NewEnvManager("../test_data/complex.env")
 	envMap := envManger.GetEnvMap()
 
-	assertEqual(t, len(envMap), 22, "Invalid number of env variables parsed")
+	assertEqual(t, len(envMap), 25, "Invalid number of env variables parsed")
 	assertEqual(t, envMap["APP_NAME"], "MultiLineApp", "Invalid value for variable APP_NAME from env")
 
 	assertEqual(t, envMap["WELCOME_MESSAGE"], `Welcome to $APP_NAME!
@@ -52,9 +52,22 @@ email TEXT UNIQUE NOT NULL
 type EnvData struct {
 	AppName  *string  `env:"APP_NAME"`
 	Version  string   `env:"VERSION"`
-	Options  []string `env:"OPTIONS" env_delim:"<<"`
+	Options  []string `env:"OPTIONS" env_delim:";"`
 	Colors   []string `env:"COLORS"`
 	AppCount int      `env:"APP_COUNT" env_def:"69"`
+
+	Email struct {
+		Host      string
+		Port      int
+		User      string
+		Pass      string
+		Signature string
+	} `env_prefix:"EMAIL"`
+
+	TLS *struct {
+		TlsCert string
+		TlsKey  string
+	}
 
 	EnvKeys  map[string]string `env_keys:"*" env_delim:","`
 	MetaKeys map[string]string `env_keys:"META_*" env_delim:","`
@@ -74,5 +87,6 @@ func TestBindEnvForSimpleStruct(t *testing.T) {
 	assertCondition(t, slices.Equal(envBinder.Options, []string{"min", "med", "max"}), "Invalid Options")
 	assertEqual(t, envBinder.AppCount, 69, "Invalid AppCount")
 	t.Log(envBinder)
+	t.Log(*envBinder.TLS)
 	t.Error()
 }
