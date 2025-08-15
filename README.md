@@ -1,6 +1,6 @@
 # Go Env Manager
 
-Is a simple, light weight package to manage your env varaibles in a go project. It uses reflection for bind the variables which is better than generating code in this case it doesnt clutter your codebase with generated code and since env is initialized once, doesnt cause performance issues. 
+Is a simple, light weight package to manage your env varaibles in a go project. It uses reflection for binding environment variables which is better than generating code in this case it doesnt clutter your codebase with generated code and since env is initialized once, doesnt cause performance issues. 
 
 ## Features
 
