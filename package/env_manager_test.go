@@ -50,11 +50,15 @@ email TEXT UNIQUE NOT NULL
 }
 
 type EnvData struct {
-	AppName  *string           `env:"APP_NAME"`
-	Version  string            `env:"VERSION"`
-	Options  []string          `env:"OPTIONS" env_delim:","`
-	AppCount int               `env:"APP_COUNT" env_def:"69"`
-	EnvKeys  map[string]string `env_keys:"APP_NAME,VERSION,OPTIONS" env_delim:","`
+	AppName  *string  `env:"APP_NAME"`
+	Version  string   `env:"VERSION"`
+	Options  []string `env:"OPTIONS" env_delim:"<<"`
+	Colors   []string `env:"COLORS"`
+	AppCount int      `env:"APP_COUNT" env_def:"69"`
+
+	EnvKeys  map[string]string `env_keys:"*" env_delim:","`
+	MetaKeys map[string]string `env_keys:"META_*" env_delim:","`
+	AppKeys  map[string]string `env_keys:"APP_NAME,VERSION,OPTIONS"`
 }
 
 func TestBindEnvForSimpleStruct(t *testing.T) {
@@ -70,5 +74,5 @@ func TestBindEnvForSimpleStruct(t *testing.T) {
 	assertCondition(t, slices.Equal(envBinder.Options, []string{"min", "med", "max"}), "Invalid Options")
 	assertEqual(t, envBinder.AppCount, 69, "Invalid AppCount")
 	t.Log(envBinder)
-
+	t.Error()
 }

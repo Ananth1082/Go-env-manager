@@ -3,7 +3,6 @@ package env_manager
 import (
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -66,7 +65,7 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 
 	varType := reflect.TypeOf(envStructPtr)
 	if varType.Kind() != reflect.Pointer || varType.Elem().Kind() != reflect.Struct {
-		panic("Invalid type of varaible")
+		panic("Invalid type of varaible: must be a pointer to a struct")
 	}
 
 	envStructType := varType.Elem()
@@ -84,10 +83,17 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 			if keys == "" {
 				panic(fmt.Sprintf("error: map field %s must have env_keys tag", field.Name))
 			}
-			var keysList []string
+
+			keysList := []string{}
 			delim := getDelim(field)
-			if keys == STRUCT_KEYWORD_ALL {
-				keysList = slices.Collect(maps.Keys(e.EnvMap))
+
+			if strings.HasSuffix(keys, "*") {
+				prefix := strings.TrimSuffix(keys, "*")
+				for key := range e.EnvMap {
+					if strings.HasPrefix(key, prefix) {
+						keysList = append(keysList, key)
+					}
+				}
 			} else {
 				keysList = strings.Split(keys, delim)
 				if len(keysList) == 0 {
@@ -119,12 +125,7 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 			continue
 		}
 
-		envVarName := getNameFromTag(envTag)
-
-		//fallback to pascale to snake case if no env tag is provided
-		if envVarName == "" {
-			envVarName = pascaleToSSnakeCase(field.Name)
-		}
+		envVarName := getNameFromTag(envTag, field.Name)
 
 		valStr := os.Getenv(envVarName)
 		if valStr == "" {
@@ -244,134 +245,12 @@ func castStringToPrimitive(value string, target reflect.Type) (reflect.Value, er
 	return reflect.ValueOf(castValue), nil
 }
 
-func subValues(envMap map[string]string, str string) string {
-	start, open, close := 0, 0, 0
-	variable := ""
-	n := len(str)
-	for start < n {
-		open = strings.Index(str[start:], "${")
-		if open == -1 {
-			// no '${' found hence come out of loop
-			break
-		}
-		open += start + 2
-		close = strings.Index(str[open:], "}")
-		if close == -1 {
-			//no '}' found hence come out of loop
-			break
-		}
-		close += open
-		variable = str[open:close]
-		val := getEnv(envMap, variable)
-		if val == "" {
-			errMsg := fmt.Sprintf("Error: undefined varaible %s", variable)
-			panic(errMsg)
-		} else {
-			str = str[:open-2] + val + str[close+1:]
-		}
-		start = close + 1
-	}
-	return str
-}
-
 func getEnv(envMap map[string]string, key string) string {
 	if value, ok := envMap[key]; ok {
 		return value
 	} else {
 		return os.Getenv(key)
 	}
-}
-
-func envParser(file string) map[string]string {
-	envMap := make(map[string]string)
-	var key, value strings.Builder
-	isWithinQuotes := false
-	quoteRune := rune(-1)
-	isKey := true
-	isEnd := false
-
-	for _, line := range strings.SplitAfter(file, "\n") {
-
-		if !isWithinQuotes {
-			isWithinQuotes = false
-			key.Reset()
-			value.Reset()
-			isKey = true
-			isEnd = false
-		}
-
-		for _, ch := range line {
-			switch ch {
-			case '\'', '"', '`':
-				if !isWithinQuotes {
-					quoteRune = ch
-					isWithinQuotes = true
-				} else if quoteRune == ch {
-					isWithinQuotes = false
-				} else {
-					if isKey {
-						fmt.Println("Invalid file format, quotes in key")
-						panic("Error")
-					} else {
-						value.WriteRune(ch)
-					}
-				}
-			case '#':
-				if isWithinQuotes {
-					if isKey {
-						key.WriteRune(ch)
-					} else {
-						value.WriteRune(ch)
-					}
-				} else {
-					isEnd = true
-				}
-			case '=':
-				if !isWithinQuotes {
-					if key.String() != "" && isKey {
-						isKey = false
-					} else {
-						fmt.Println("Invalid file format, error")
-						panic("Error")
-					}
-				} else {
-					if isKey {
-						key.WriteRune(ch)
-					} else {
-						value.WriteRune(ch)
-					}
-				}
-			case '\n':
-				if !isWithinQuotes {
-					isEnd = true
-				} else {
-					if isKey {
-						fmt.Println("Invalid file format, error")
-						panic("Error")
-					} else {
-						value.WriteRune('\n')
-					}
-				}
-			default:
-				if isKey {
-					key.WriteRune(ch)
-				} else {
-					value.WriteRune(ch)
-				}
-			}
-			if isEnd {
-				break
-			}
-		}
-		if !isWithinQuotes && key.String() != "" {
-			if quoteRune == '\'' {
-				envMap[key.String()] = value.String()
-			} else {
-				envMap[key.String()] = subValues(envMap, value.String())
-			}
-		}
-	}
-	return envMap
 }
 
 func openFile(fileName string) string {
@@ -391,7 +270,7 @@ func loadEnvMap(envMap map[string]string) {
 
 }
 
-func getNameFromTag(tags []string) string {
+func getNameFromTag(tags []string, fieldName string) string {
 	if len(tags) == 0 {
 		return ""
 	}
@@ -400,7 +279,10 @@ func getNameFromTag(tags []string) string {
 			return part
 		}
 	}
-	return ""
+
+	//fallback to pascale to snake case if no env tag is provided
+	fallback := pascaleToSSnakeCase(fieldName)
+	return fallback
 }
 
 func isKeyWord(tagEntry string) bool {
