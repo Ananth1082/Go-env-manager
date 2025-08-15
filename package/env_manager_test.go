@@ -45,7 +45,6 @@ id SERIAL PRIMARY KEY,
 name TEXT NOT NULL,
 email TEXT UNIQUE NOT NULL
 );`, "Invalid value for variable INIT_SQL from env")
-
 	t.Log("Env variables: ", len(envMap))
 }
 
@@ -88,4 +87,5 @@ func TestBindEnvForSimpleStruct(t *testing.T) {
 	assertEqual(t, envBinder.AppCount, 69, "Invalid AppCount")
 	t.Log(envBinder)
 	t.Log(*envBinder.TLS)
+	t.Error()
 }
