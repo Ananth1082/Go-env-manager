@@ -219,6 +219,6 @@ func (e *EnvManager) getEnvValue(prefix, key string) (string, string) {
 	if prefix != "" {
 		key = prefix + "_" + key
 	}
-	e.Logger.Println("Accessed environment varaible", prefix)
+	e.Logger.Println("Accessed environment varaible", key)
 	return key, os.Getenv(key)
 }
