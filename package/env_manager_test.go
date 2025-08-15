@@ -50,6 +50,8 @@ email TEXT UNIQUE NOT NULL
 }
 
 type EnvData struct {
+	IgnoreField int `env:"ignore"`
+
 	AppName  *string  `env:"APP_NAME"`
 	Version  string   `env:"VERSION"`
 	Options  []string `env:"OPTIONS" env_delim:";"`
@@ -63,7 +65,6 @@ type EnvData struct {
 		Pass      string
 		Signature string
 	} `env_prefix:"EMAIL"`
-
 	TLS *struct {
 		TlsCert string
 		TlsKey  string
@@ -75,7 +76,6 @@ type EnvData struct {
 }
 
 func TestBindEnvForSimpleStruct(t *testing.T) {
-
 	envBinder := new(EnvData)
 
 	envManger := NewEnvManager("../test_data/complex.env")

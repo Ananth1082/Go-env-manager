@@ -75,6 +75,7 @@ func (e *EnvManager) BindEnvWithPrefix(envStructPtr any, prefix string) {
 		field := envStructType.Field(i)
 		fieldType := field.Type
 		envTag := strings.Split(field.Tag.Get(STRUCT_TAG_ENV), ",")
+
 		fieldPrefix := prefix
 		if field.Tag.Get(STRUCT_TAG_PREFIX) != "" {
 			if fieldPrefix != "" {
@@ -87,7 +88,6 @@ func (e *EnvManager) BindEnvWithPrefix(envStructPtr any, prefix string) {
 			continue
 		}
 
-		//TODO: fix the map implementation
 		if field.Type.Kind() == reflect.Map {
 			keys := field.Tag.Get(STRUCT_TAG_KEYS)
 			if keys == "" {
@@ -164,7 +164,7 @@ func (e *EnvManager) BindEnvWithPrefix(envStructPtr any, prefix string) {
 			} else {
 				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
 			}
-		} else if field.Type.Kind() == reflect.Slice {
+		} else if field.Type.Kind() == reflect.Slice && isPrimitive(field.Type.Elem()) {
 			delim := getDelim(field)
 			if value, err := castStringToSlice(valStr, field.Type.Elem(), delim); err != nil {
 				log.Println(err)
