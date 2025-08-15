@@ -88,5 +88,4 @@ func TestBindEnvForSimpleStruct(t *testing.T) {
 	assertEqual(t, envBinder.AppCount, 69, "Invalid AppCount")
 	t.Log(envBinder)
 	t.Log(*envBinder.TLS)
-	t.Error()
 }

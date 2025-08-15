@@ -27,8 +27,6 @@ const (
 type EnvManager struct {
 	File   string
 	EnvMap map[string]string
-	Global bool // flag to access all env variables
-	Silent bool // show verbose error
 }
 
 func NewEnvManager(file string) *EnvManager {
@@ -72,115 +70,128 @@ func (e *EnvManager) BindEnvWithPrefix(envStructPtr any, prefix string) {
 	envStructType := varType.Elem()
 	// loop on each field of struct
 	for i := range envStructType.NumField() {
-		field := envStructType.Field(i)
-		fieldType := field.Type
-		envTag := strings.Split(field.Tag.Get(STRUCT_TAG_ENV), ",")
+		e.HandleField(envStructPtr, envStructType, i, prefix)
+	}
+}
 
-		fieldPrefix := prefix
-		if field.Tag.Get(STRUCT_TAG_PREFIX) != "" {
-			if fieldPrefix != "" {
-				fieldPrefix += "_"
-			}
-			fieldPrefix += field.Tag.Get(STRUCT_TAG_PREFIX)
+func (e *EnvManager) HandleField(envStructPtr any, envStructType reflect.Type, i int, prefix string) error {
+	field := envStructType.Field(i)
+	fieldType := field.Type
+	envTag := strings.Split(field.Tag.Get(STRUCT_TAG_ENV), ",")
+
+	fieldPrefix := prefix
+	if field.Tag.Get(STRUCT_TAG_PREFIX) != "" {
+		if fieldPrefix != "" {
+			fieldPrefix += "_"
 		}
+		fieldPrefix += field.Tag.Get(STRUCT_TAG_PREFIX)
+	}
 
-		if slices.Contains(envTag, STRUCT_KEYWORD_IGNORE) {
-			continue
-		}
+	if slices.Contains(envTag, STRUCT_KEYWORD_IGNORE) {
+		return nil
+	}
 
-		if field.Type.Kind() == reflect.Map {
-			keys := field.Tag.Get(STRUCT_TAG_KEYS)
-			if keys == "" {
-				panic(fmt.Sprintf("error: map field %s must have env_keys tag", field.Name))
-			}
-
-			keysList := []string{}
-			delim := getDelim(field)
-
-			if strings.HasSuffix(keys, "*") {
-				keyPrefix := strings.TrimSuffix(keys, "*")
-				for key := range e.EnvMap {
-					if strings.HasPrefix(key, keyPrefix) {
-						keysList = append(keysList, key)
-					}
-				}
-			} else {
-				keysList = strings.Split(keys, delim)
-				if len(keysList) == 0 {
-					panic(fmt.Sprintf("error: map field %s must have at least one key in env_keys tag", field.Name))
-				}
-			}
-
-			mapValue := reflect.MakeMap(field.Type)
-			for _, key := range keysList {
-				if key == "" {
-					panic(fmt.Sprintf("error: empty key in env_keys tag for field %s", field.Name))
-				}
-				key, val := getEnvValue(fieldPrefix, key)
-				if val == "" {
-					val = field.Tag.Get(STRUCT_TAG_DEFAULT_VALUE)
-					if val == "" {
-						panic(fmt.Sprintf("error: env variable %s not found", key))
-					}
-				}
-				elemValue, err := castString(val, field.Type.Elem(), delim)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-				mapValue.SetMapIndex(reflect.ValueOf(key), elemValue)
-			}
-			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(mapValue)
-			continue
-		} else if fieldType.Kind() == reflect.Struct {
-			structPtr := reflect.New(fieldType)
-			e.BindEnvWithPrefix(structPtr.Interface(), fieldPrefix)
-			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(structPtr.Elem())
-			continue
-		} else if fieldType.Kind() == reflect.Pointer && fieldType.Elem().Kind() == reflect.Struct {
-			structPtr := reflect.New(fieldType.Elem())
-			e.BindEnvWithPrefix(structPtr.Interface(), fieldPrefix)
-			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(structPtr)
-			continue
-		}
-
-		envVarName := getNameFromTag(envTag, field.Name)
-
-		key, valStr := getEnvValue(fieldPrefix, envVarName)
-		if valStr == "" {
-			if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
-				if field.Type.Kind() == reflect.Pointer {
-					// if the field is a pointer type, we can set it to nil
-					reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.Zero(field.Type))
-					continue
-				} else {
-					panic(fmt.Sprintf("error: env variable %s not found", key))
-				}
-			}
-		}
-		if isPrimitive(field.Type) {
-			if value, err := castStringToPrimitive(valStr, field.Type); err != nil {
-				log.Println(err)
-			} else {
-				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
-			}
-		} else if field.Type.Kind() == reflect.Slice && isPrimitive(field.Type.Elem()) {
-			delim := getDelim(field)
-			if value, err := castStringToSlice(valStr, field.Type.Elem(), delim); err != nil {
-				log.Println(err)
-			} else {
-				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
-			}
-		} else if field.Type.Kind() == reflect.Pointer {
-			if value, err := castString(valStr, field.Type.Elem(), ""); err != nil {
-				log.Println(err)
-			} else {
-				ptrValue := reflect.New(field.Type.Elem())
-				ptrValue.Elem().Set(value)
-				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(ptrValue)
-			}
+	if fieldType.Kind() == reflect.Map {
+		if mapValue, err := e.CastMap(field, fieldPrefix); err != nil {
+			return err
 		} else {
-			panic(fmt.Sprintf("error: type %s not supported", field.Type.Kind()))
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(mapValue)
+		}
+		return nil
+	} else if fieldType.Kind() == reflect.Struct {
+		structPtr := reflect.New(fieldType)
+		e.BindEnvWithPrefix(structPtr.Interface(), fieldPrefix)
+		reflect.ValueOf(envStructPtr).Elem().Field(i).Set(structPtr.Elem())
+		return nil
+	} else if fieldType.Kind() == reflect.Pointer && fieldType.Elem().Kind() == reflect.Struct {
+		structPtr := reflect.New(fieldType.Elem())
+		e.BindEnvWithPrefix(structPtr.Interface(), fieldPrefix)
+		reflect.ValueOf(envStructPtr).Elem().Field(i).Set(structPtr)
+		return nil
+	}
+
+	envVarName := getNameFromTag(envTag, field.Name)
+
+	key, valStr := getEnvValue(fieldPrefix, envVarName)
+	if valStr == "" {
+		if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
+			if fieldType.Kind() == reflect.Pointer {
+				// if the field is a pointer type, we can set it to nil
+				reflect.ValueOf(envStructPtr).Elem().Field(i).Set(reflect.Zero(fieldType))
+				return nil
+			} else {
+				return NewKeyNotFoundErr(key)
+			}
 		}
 	}
+	if isPrimitive(fieldType) {
+		if value, err := castStringToPrimitive(valStr, fieldType); err != nil {
+			log.Println(err)
+		} else {
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
+		}
+	} else if fieldType.Kind() == reflect.Slice && isPrimitive(fieldType.Elem()) {
+		delim := getDelim(field)
+		if value, err := castStringToSlice(valStr, fieldType.Elem(), delim); err != nil {
+			log.Println(err)
+		} else {
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(value)
+		}
+	} else if fieldType.Kind() == reflect.Pointer {
+		if value, err := castString(valStr, fieldType.Elem(), ""); err != nil {
+			log.Println(err)
+		} else {
+			ptrValue := reflect.New(fieldType.Elem())
+			ptrValue.Elem().Set(value)
+			reflect.ValueOf(envStructPtr).Elem().Field(i).Set(ptrValue)
+		}
+	} else {
+		return NewUnSupportedTypeError(field.Name, fieldType.Name())
+	}
+	return nil
+}
+
+func (e *EnvManager) CastMap(field reflect.StructField, fieldPrefix string) (reflect.Value, error) {
+	emptyValue := reflect.Value{}
+	keys := field.Tag.Get(STRUCT_TAG_KEYS)
+	if keys == "" {
+		return emptyValue, NewNoKeysForMapErr(field.Name)
+	}
+
+	keysList := []string{}
+	delim := getDelim(field)
+
+	if strings.HasSuffix(keys, "*") {
+		keyPrefix := strings.TrimSuffix(keys, "*")
+		for key := range e.EnvMap {
+			if strings.HasPrefix(key, keyPrefix) {
+				keysList = append(keysList, key)
+			}
+		}
+	} else {
+		keysList = strings.Split(keys, delim)
+		if len(keysList) == 0 {
+			return emptyValue, NewNoKeysForMapErr(field.Name)
+		}
+	}
+
+	mapValue := reflect.MakeMap(field.Type)
+	for _, key := range keysList {
+		if key == "" {
+			return emptyValue, NewNoKeysForMapErr(field.Name)
+		}
+		key, val := getEnvValue(fieldPrefix, key)
+		if val == "" {
+			val = field.Tag.Get(STRUCT_TAG_DEFAULT_VALUE)
+			if val == "" {
+				return emptyValue, NewInvalidUsageErr(field.Name, "no default value given")
+			}
+		}
+		elemValue, err := castString(val, field.Type.Elem(), delim)
+		if err != nil {
+			return emptyValue, err
+		}
+		mapValue.SetMapIndex(reflect.ValueOf(key), elemValue)
+	}
+	return mapValue, nil
 }
