@@ -98,10 +98,10 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 	}
 
 	if fieldType.Kind() == reflect.Map {
-		if mapValue, err := e.CastMap(field, fieldPrefix); err != nil {
+		if mapValue, err := e.castMap(field, fieldPrefix); err != nil {
 			return err
 		} else {
-			e.SetField(i, field.Name, envStructPtr, mapValue)
+			e.setField(i, field.Name, envStructPtr, mapValue)
 		}
 		return nil
 	} else if fieldType.Kind() == reflect.Struct {
@@ -109,7 +109,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		if err := e.bindEnvWithPrefix(structPtr.Interface(), fieldPrefix); err != nil {
 			return err
 		} else {
-			e.SetField(i, field.Name, envStructPtr, structPtr.Elem())
+			e.setField(i, field.Name, envStructPtr, structPtr.Elem())
 			return nil
 		}
 	} else if fieldType.Kind() == reflect.Pointer && fieldType.Elem().Kind() == reflect.Struct {
@@ -117,7 +117,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		if err := e.bindEnvWithPrefix(structPtr.Interface(), fieldPrefix); err != nil {
 			return err
 		} else {
-			e.SetField(i, field.Name, envStructPtr, structPtr)
+			e.setField(i, field.Name, envStructPtr, structPtr)
 			return nil
 		}
 	}
@@ -129,7 +129,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
 			if fieldType.Kind() == reflect.Pointer {
 				// if the field is a pointer type, we can set it to nil
-				e.SetField(i, field.Name, envStructPtr, reflect.Zero(fieldType))
+				e.setField(i, field.Name, envStructPtr, reflect.Zero(fieldType))
 				return nil
 			} else {
 				return NewKeyNotFoundErr(key)
@@ -140,14 +140,14 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		if value, err := castStringToPrimitive(valStr, fieldType); err != nil {
 			return NewTypeCastErr(valStr, fieldType.Name(), err)
 		} else {
-			e.SetField(i, field.Name, envStructPtr, value)
+			e.setField(i, field.Name, envStructPtr, value)
 		}
 	} else if fieldType.Kind() == reflect.Slice && isPrimitive(fieldType.Elem()) {
 		delim := getDelim(field)
 		if value, err := castStringToSlice(valStr, fieldType.Elem(), delim); err != nil {
 			return NewTypeCastErr(valStr, fieldType.Name(), err)
 		} else {
-			e.SetField(i, field.Name, envStructPtr, value)
+			e.setField(i, field.Name, envStructPtr, value)
 		}
 	} else if fieldType.Kind() == reflect.Pointer {
 		if value, err := castString(valStr, fieldType.Elem(), ""); err != nil {
@@ -155,7 +155,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		} else {
 			ptrValue := reflect.New(fieldType.Elem())
 			ptrValue.Elem().Set(value)
-			e.SetField(i, field.Name, envStructPtr, ptrValue)
+			e.setField(i, field.Name, envStructPtr, ptrValue)
 		}
 	} else {
 		return NewUnSupportedTypeError(field.Name, fieldType.Name())
@@ -163,7 +163,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 	return nil
 }
 
-func (e *EnvManager) CastMap(field reflect.StructField, fieldPrefix string) (reflect.Value, error) {
+func (e *EnvManager) castMap(field reflect.StructField, fieldPrefix string) (reflect.Value, error) {
 	emptyValue := reflect.Value{}
 	keys := field.Tag.Get(STRUCT_TAG_KEYS)
 	if keys == "" {
@@ -209,7 +209,7 @@ func (e *EnvManager) CastMap(field reflect.StructField, fieldPrefix string) (ref
 	return mapValue, nil
 }
 
-func (e *EnvManager) SetField(i int, key string, ptr any, value reflect.Value) {
+func (e *EnvManager) setField(i int, key string, ptr any, value reflect.Value) {
 	field := reflect.ValueOf(ptr).Elem().Field(i)
 	e.Logger.Println("SET", key)
 	field.Set(value)
