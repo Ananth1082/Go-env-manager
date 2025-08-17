@@ -6,20 +6,8 @@ import (
 	"time"
 )
 
-func assertEqual[T comparable](t *testing.T, actual, expected T, msg string) {
-	if actual != expected {
-		t.Errorf("Assertion error\nExpected %v got %v\n%s", expected, actual, msg)
-	}
-}
-
-func assertCondition(t *testing.T, condition bool, msg string) {
-	if !condition {
-		t.Errorf("Assertion error\nCondition failed: %s", msg)
-	}
-}
-
 // Testing the parsing logic for simple env file
-func TestGetEnvMapForSimpleFile(t *testing.T) {
+func TestParsingForSimpleEnvFile(t *testing.T) {
 	envManger := NewEnvManager("../test_data/simple.env")
 	envMap := envManger.GetEnvMap()
 
@@ -30,11 +18,11 @@ func TestGetEnvMapForSimpleFile(t *testing.T) {
 }
 
 // Testing parsing logic for complex features like multi-line strings, varaibles
-func TestGetEnvMapForComplexFile(t *testing.T) {
+func TestParsingForComplexFile(t *testing.T) {
 	envManger := NewEnvManager("../test_data/complex.env")
 	envMap := envManger.GetEnvMap()
 
-	assertEqual(t, len(envMap), 2, "Invalid number of env variables parsed")
+	assertEqual(t, len(envMap), 26, "Invalid number of env variables parsed")
 	assertEqual(t, envMap["APP_NAME"], "MultiLineApp", "Invalid value for variable APP_NAME from env")
 
 	assertEqual(t, envMap["WELCOME_MESSAGE"], `Welcome to $APP_NAME!
@@ -49,7 +37,47 @@ email TEXT UNIQUE NOT NULL
 	t.Log("Env variables: ", len(envMap))
 }
 
-type EnvData struct {
+type TestBindEnvForDefaultKeyNamesStruct struct {
+	APPName string
+	APPEnv  string
+	APPPort int
+}
+
+func TestBindEnvForDefaultKeyNames(t *testing.T) {
+	envBinder := new(TestBindEnvForDefaultKeyNamesStruct)
+	envManager := NewEnvManager("../test_data/simple.env")
+	envManager.LoadEnv()
+
+	envManager.BindEnv(envBinder)
+
+	assertEqual(t, envBinder.APPName, "MyCoolApp", "APPName must access APP_NAME")
+	assertEqual(t, envBinder.APPEnv, "production", "APPEnv must access APP_ENV")
+	assertEqual(t, envBinder.APPPort, 8080, "APPPort must access APP_PORT")
+}
+
+type TestBindEnvForDefaultValueStruct struct {
+	AppName    string
+	AppEnv     string
+	AppVersion string `env_def:"v0.0"`
+	AppSeed    int    `env_def:"69"`
+}
+
+func TestBindEnvForDefaultValue(t *testing.T) {
+	envBinder := new(TestBindEnvForDefaultValueStruct)
+	envManager := NewEnvManager("../test_data/simple.env")
+	envManager.LoadEnv()
+
+	envManager.BindEnv(envBinder)
+
+	assertEqual(t, envBinder.AppSeed, 69, "AppSeed should be defaulted to 69")
+	assertEqual(t, envBinder.AppVersion, "v0.0", "AppVersion should be defauled to v0.0")
+}
+
+type TestNilPointerFieldStruct struct {
+	AppName string
+}
+
+type TestBindEnvForComplexDataStruct struct {
 	IgnoreField int `env:"ignore"`
 
 	AppName  *string       `env:"APP_NAME"`
@@ -67,8 +95,8 @@ type EnvData struct {
 		Signature string
 	} `env_prefix:"EMAIL"`
 	TLS *struct {
-		TlsCert string
-		TlsKey  string
+		TLSCert string
+		TLSKey  string
 	}
 
 	EnvKeys  map[string]string `env_keys:"*" env_delim:","`
@@ -76,8 +104,8 @@ type EnvData struct {
 	AppKeys  map[string]string `env_keys:"APP_NAME,VERSION,OPTIONS"`
 }
 
-func TestBindEnvForSimpleStruct(t *testing.T) {
-	envBinder := new(EnvData)
+func TestBindEnvForComplexData(t *testing.T) {
+	envBinder := new(TestBindEnvForComplexDataStruct)
 
 	envManger := NewEnvManager("../test_data/complex.env")
 	envManger.LoadEnv()

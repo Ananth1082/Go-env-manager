@@ -10,6 +10,7 @@ const (
 	KEY_NOT_FOUND_ERROR = iota
 	INVALID_USAGE_ERROR
 	TYPE_CAST_ERROR
+	PARSER_ERROR
 	UNEXPECTED_ERROR
 )
 
@@ -17,6 +18,7 @@ const (
 	KEY_NOT_FOUND_MSG    = "Key not found"
 	INVALID_USAGE_MSG    = "Invalid usage"
 	TYPE_CAST_ERROR_MSG  = "Invalid value for the type"
+	PARSER_ERROR_MSG     = "Invalid env file syntax"
 	UNEXPECTED_ERROR_MSG = "Unexpected error"
 )
 
@@ -75,4 +77,10 @@ func newTypeCastErr(value, castType string, err error) *EnvError {
 
 func newNoKeysForMapErr(field string) *EnvError {
 	return newInvalidUsageErr("empty key in env_keys tag", field)
+}
+
+func newParserError(file string, line, ch int, reason string) *EnvError {
+	return newEnvError(
+		PARSER_ERROR,
+		fmt.Errorf("invalid sytax in %s:%d:%d reason: %s", file, line, ch, reason))
 }

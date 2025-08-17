@@ -35,7 +35,7 @@ func subValues(envMap map[string]string, str string) string {
 	return str
 }
 
-func envParser(file string, envMap map[string]string) map[string]string {
+func envParser(file string, envMap map[string]string) (map[string]string, error) {
 	if envMap == nil {
 		envMap = make(map[string]string)
 	}
@@ -45,7 +45,7 @@ func envParser(file string, envMap map[string]string) map[string]string {
 	isKey := true
 	isEnd := false
 
-	for _, line := range strings.SplitAfter(file, "\n") {
+	for lineNum, line := range strings.SplitAfter(file, "\n") {
 
 		if !isWithinQuotes {
 			isWithinQuotes = false
@@ -55,7 +55,7 @@ func envParser(file string, envMap map[string]string) map[string]string {
 			isEnd = false
 		}
 
-		for _, ch := range line {
+		for chNum, ch := range line {
 			switch ch {
 			case '\'', '"', '`':
 				if !isWithinQuotes {
@@ -65,8 +65,7 @@ func envParser(file string, envMap map[string]string) map[string]string {
 					isWithinQuotes = false
 				} else {
 					if isKey {
-						fmt.Println("Invalid file format, quotes in key")
-						panic("Error")
+						return nil, newParserError(file, lineNum+1, chNum+1, "No quotes allowed in key")
 					} else {
 						value.WriteRune(ch)
 					}
@@ -86,8 +85,7 @@ func envParser(file string, envMap map[string]string) map[string]string {
 					if key.String() != "" && isKey {
 						isKey = false
 					} else {
-						fmt.Println("Invalid file format, error")
-						panic("Error")
+						return nil, newParserError(file, lineNum+1, chNum+1, "Keys cannot be empty")
 					}
 				} else {
 					if isKey {
@@ -101,8 +99,7 @@ func envParser(file string, envMap map[string]string) map[string]string {
 					isEnd = true
 				} else {
 					if isKey {
-						fmt.Println("Invalid file format, error")
-						panic("Error")
+						return nil, newParserError(file, lineNum+1, chNum+1, "Keys cannot have new line, expected '='")
 					} else {
 						value.WriteRune('\n')
 					}
@@ -126,5 +123,5 @@ func envParser(file string, envMap map[string]string) map[string]string {
 			}
 		}
 	}
-	return envMap
+	return envMap, nil
 }

@@ -56,7 +56,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 	}
 
 	envVarName := getNameFromTag(envTag, field.Name)
-	e.Logger.Println(field.Name, "type: ", fieldType)
+	e.logger.Println(field.Name, "type: ", fieldType)
 	if fieldType.Kind() == reflect.Map {
 		if mapValue, err := e.castMap(field, fieldPrefix); err != nil {
 			return err
@@ -65,10 +65,8 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		}
 		return nil
 	} else if checkType(fieldType, "time.Duration") {
-		e.Logger.Println("Hello")
 		key, valStr := e.getEnvValue(fieldPrefix, envVarName)
 		if t, err := time.ParseDuration(valStr); err != nil {
-			e.Logger.Println("Error")
 			panic(err)
 		} else {
 			e.setField(i, key, envStructPtr, reflect.ValueOf(t))
@@ -143,7 +141,7 @@ func (e *EnvManager) castMap(field reflect.StructField, fieldPrefix string) (ref
 
 	if strings.HasSuffix(keys, "*") {
 		keyPrefix := strings.TrimSuffix(keys, "*")
-		for key := range e.EnvMap {
+		for key := range e.envMap {
 			if strings.HasPrefix(key, keyPrefix) {
 				keysList = append(keysList, key)
 			}
@@ -179,7 +177,7 @@ func (e *EnvManager) castMap(field reflect.StructField, fieldPrefix string) (ref
 
 func (e *EnvManager) setField(i int, key string, ptr any, value reflect.Value) {
 	field := reflect.ValueOf(ptr).Elem().Field(i)
-	e.Logger.Println("SET", key)
+	e.logger.Println("SET", key)
 	field.Set(value)
 }
 
@@ -187,6 +185,6 @@ func (e *EnvManager) getEnvValue(prefix, key string) (string, string) {
 	if prefix != "" {
 		key = prefix + "_" + key
 	}
-	e.Logger.Println("Accessed environment varaible", key)
+	e.logger.Println("Accessed environment varaible", key)
 	return key, os.Getenv(key)
 }

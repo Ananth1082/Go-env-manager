@@ -44,7 +44,7 @@ func getNameFromTag(tags []string, fieldName string) string {
 	}
 
 	//fallback to pascale to snake case if no env tag is provided
-	fallback := pascaleToSSnakeCase(fieldName)
+	fallback := pascalToSnakeCase(fieldName)
 	return fallback
 }
 
@@ -57,13 +57,19 @@ func isKeyWord(tagEntry string) bool {
 	}
 }
 
-func pascaleToSSnakeCase(str string) string {
+// Converts PascalCase or camelCase to SNAKE_CASE
+// Keeps abbreviations intact: TLSCert -> TLS_CERT
+func pascalToSnakeCase(str string) string {
 	var result strings.Builder
-	for i, ch := range str {
-		if unicode.IsUpper(ch) && i > 0 {
-			result.WriteRune('_')
+	runes := []rune(str)
+	for i, r := range runes {
+		if unicode.IsUpper(r) {
+			// Add underscore if not first character and previous rune is lower
+			if i > 0 && (unicode.IsLower(runes[i-1]) || (i+1 < len(runes) && unicode.IsLower(runes[i+1]))) {
+				result.WriteRune('_')
+			}
 		}
-		result.WriteRune(unicode.ToUpper(ch))
+		result.WriteRune(unicode.ToUpper(r))
 	}
 	return result.String()
 }
