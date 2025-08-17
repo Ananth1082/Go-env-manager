@@ -85,9 +85,7 @@ func (e *EnvManager) BindEnv(envStructPtr any) {
 
 func (e *EnvManager) parseEnv() {
 	for _, file := range e.files {
-		content := openFile(file)
-		e.logger.Println("parsing file", file)
-		if _, err := envParser(content, e.envMap); err != nil {
+		if err := newEnvParser(file, e.envMap).parse(); err != nil {
 			e.logger.Fatalln(err)
 		}
 	}

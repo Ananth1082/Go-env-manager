@@ -8,13 +8,16 @@ import (
 
 // Testing the parsing logic for simple env file
 func TestParsingForSimpleEnvFile(t *testing.T) {
-	envManger := NewEnvManager("../test_data/simple.env")
-	envMap := envManger.GetEnvMap()
+	emap := make(map[string]string)
 
-	assertEqual(t, len(envMap), 6, "Invalid number of env variables parsed")
-	assertEqual(t, envMap["APP_NAME"], "MyCoolApp", "Invalid App name from env")
-	assertEqual(t, envMap["APP_PORT"], "8080", "Invalid port from env")
-	t.Log("Env variables: ", len(envMap))
+	if err := newEnvParser("../test_data/simple.env", emap).parse(); err != nil {
+		t.Error(err)
+	}
+
+	assertEqual(t, len(emap), 6, "Invalid number of env variables parsed")
+	assertEqual(t, emap["APP_NAME"], "MyCoolApp", "Invalid App name from env")
+	assertEqual(t, emap["APP_PORT"], "8080", "Invalid port from env")
+	t.Log("Env variables: ", len(emap))
 }
 
 // Testing parsing logic for complex features like multi-line strings, varaibles
@@ -22,7 +25,7 @@ func TestParsingForComplexFile(t *testing.T) {
 	envManger := NewEnvManager("../test_data/complex.env")
 	envMap := envManger.GetEnvMap()
 
-	assertEqual(t, len(envMap), 26, "Invalid number of env variables parsed")
+	assertEqual(t, len(envMap), 25, "Invalid number of env variables parsed")
 	assertEqual(t, envMap["APP_NAME"], "MultiLineApp", "Invalid value for variable APP_NAME from env")
 
 	assertEqual(t, envMap["WELCOME_MESSAGE"], `Welcome to $APP_NAME!

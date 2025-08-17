@@ -3,9 +3,33 @@ package env_manager
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
-func subValues(envMap map[string]string, str string) string {
+type envParser struct {
+	file    string
+	content string
+	env     map[string]string
+}
+
+func newEnvParser(file string, env map[string]string) *envParser {
+	p := &envParser{
+		file:    file,
+		content: openFile(file),
+	}
+	if env == nil {
+		p.env = make(map[string]string)
+	} else {
+		p.env = env
+	}
+	return p
+}
+
+func (e *envParser) Add(key, value string) {
+	e.env[strings.TrimSpace(key)] = strings.TrimSpace(value)
+}
+
+func (e *envParser) subValues(str string) (string, error) {
 	start, open, close := 0, 0, 0
 	variable := ""
 	n := len(str)
@@ -23,32 +47,30 @@ func subValues(envMap map[string]string, str string) string {
 		}
 		close += open
 		variable = str[open:close]
-		val := getEnv(envMap, variable)
+		val := getEnv(e.env, variable)
 		if val == "" {
-			errMsg := fmt.Sprintf("Error: undefined varaible %s", variable)
-			panic(errMsg)
+			return "", fmt.Errorf("variable not found")
 		} else {
 			str = str[:open-2] + val + str[close+1:]
 		}
 		start = close + 1
 	}
-	return str
+	return str, nil
 }
 
-func envParser(file string, envMap map[string]string) (map[string]string, error) {
-	if envMap == nil {
-		envMap = make(map[string]string)
-	}
+func (e *envParser) parse() error {
 	var key, value strings.Builder
 	isWithinQuotes := false
+	isQuoteEnd := false
 	quoteRune := rune(-1)
 	isKey := true
 	isEnd := false
 
-	for lineNum, line := range strings.SplitAfter(file, "\n") {
+	for lineNum, line := range strings.SplitAfter(e.content, "\n") {
 
 		if !isWithinQuotes {
 			isWithinQuotes = false
+			isQuoteEnd = false
 			key.Reset()
 			value.Reset()
 			isKey = true
@@ -63,9 +85,10 @@ func envParser(file string, envMap map[string]string) (map[string]string, error)
 					isWithinQuotes = true
 				} else if quoteRune == ch {
 					isWithinQuotes = false
+					isQuoteEnd = true
 				} else {
 					if isKey {
-						return nil, newParserError(file, lineNum+1, chNum+1, "No quotes allowed in key")
+						return newParserError(e.file, lineNum+1, chNum+1, "No quotes allowed in key")
 					} else {
 						value.WriteRune(ch)
 					}
@@ -85,7 +108,7 @@ func envParser(file string, envMap map[string]string) (map[string]string, error)
 					if key.String() != "" && isKey {
 						isKey = false
 					} else {
-						return nil, newParserError(file, lineNum+1, chNum+1, "Keys cannot be empty")
+						return newParserError(e.file, lineNum+1, chNum+1, "Keys cannot be empty")
 					}
 				} else {
 					if isKey {
@@ -99,7 +122,7 @@ func envParser(file string, envMap map[string]string) (map[string]string, error)
 					isEnd = true
 				} else {
 					if isKey {
-						return nil, newParserError(file, lineNum+1, chNum+1, "Keys cannot have new line, expected '='")
+						return newParserError(e.file, lineNum+1, chNum+1, "Keys cannot have new line, expected '='")
 					} else {
 						value.WriteRune('\n')
 					}
@@ -107,6 +130,8 @@ func envParser(file string, envMap map[string]string) (map[string]string, error)
 			default:
 				if isKey {
 					key.WriteRune(ch)
+				} else if isQuoteEnd && !unicode.IsSpace(ch) {
+					return newParserError(e.file, lineNum+1, chNum+1, "Only white space charecters or comments allowed after end of quote")
 				} else {
 					value.WriteRune(ch)
 				}
@@ -116,12 +141,17 @@ func envParser(file string, envMap map[string]string) (map[string]string, error)
 			}
 		}
 		if !isWithinQuotes && key.String() != "" {
-			if quoteRune == '\'' {
-				envMap[key.String()] = value.String()
-			} else {
-				envMap[key.String()] = subValues(envMap, value.String())
-			}
+			e.Add(key.String(), value.String())
 		}
 	}
-	return envMap, nil
+
+	// substitute all variable values
+	for k, v := range e.env {
+		if subValue, err := e.subValues(v); err != nil {
+			return err
+		} else {
+			e.env[k] = subValue
+		}
+	}
+	return nil
 }
