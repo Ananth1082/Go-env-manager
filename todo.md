@@ -5,3 +5,4 @@
 - Error management
 - Namespaces
 - Beautify
+- Add special type integrations

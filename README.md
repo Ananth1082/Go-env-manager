@@ -1,41 +1,73 @@
 # Go Env Manager
 
-Is a simple, light weight package to manage your env varaibles in a go project. It uses reflection for binding environment variables which is better than generating code in this case it doesnt clutter your codebase with generated code and since env is initialized once, doesnt cause performance issues. 
+**Go Env Manager** is a simple, lightweight package to manage environment variables in Go projects.
+It uses **reflection** to bind environment variables to struct fields, avoiding the need for code generation.
+This keeps your codebase clean, while the one-time initialization ensures no noticeable performance cost.
 
 ## Features
 
-- Load env variable from env files
-- Bind structs to the env varaibles to provide a schema for your env files.
+* **Load** environment variables from `.env` files.
+* **Bind** structs to environment variables to provide a schema and validation for your env files.
+* **Supports**:
+
+  * Default values
+  * Field-specific delimiters
+  * Nested structs with prefixes
+  * Map binding from multiple env keys
+  * Wildcard key matching
+
+---
 
 ## Methods
 
-1. `func LoadEnv(fileName string)` loads the env variables from the env file.
-2. `func BindEnv(envStructPtr interface{})` binds the pointer to a struct to respective env variables (the name provided in the struct tags will be used)
+1. **`func LoadEnv(fileName string)`**
+   Loads environment variables from the given `.env` file.
 
-## Struct fields
+2. **`func BindEnv(envStructPtr interface{})`**
+   Binds a pointer to a struct to the respective environment variables.
+   The struct tags define the mapping.
+
+---
+
+## Struct Field Tags
+
+| Tag          | Description                                                               |
+| ------------ | ------------------------------------------------------------------------- |
+| `env`        | The env variable name linked to the field.                                |
+| `env_def`    | Default value if the variable is missing.                                 |
+| `env_delim`  | Delimiter for splitting values into slices.                               |
+| `env_prefix` | Prefix for all env variables in a nested struct.                          |
+| `env_keys`   | List of env keys for maps. Supports `*` wildcard to match keys by prefix. |
+
+---
+
+### Example
 
 ```go
-// example
 type Config struct {
-	ProjectName string   `env:"APP_NAME"`
-	Difficulty  []string `env_delim:";"`
-	Port        int      `env_def:"8080"`
-	Email       *struct {
-		Host      string
-		Port      int
-		User      string
-		Pass      string
-		Signature string
-	} `env_prefix:"EMAIL"`
-	UserKeys map[string]string `env_keys:"USER*"`
+    ProjectName string   `env:"APP_NAME"`
+    Difficulty  []string `env_delim:";"`
+    Port        int      `env_def:"8080"`
+    Email       *struct {
+        Host      string
+        Port      int
+        User      string
+        Pass      string
+        Signature string
+    } `env_prefix:"EMAIL"`
+    UserKeys map[string]string `env_keys:"USER*"`
 }
-
 ```
+
+---
+
+### Example `.env` File
 
 ```env
 APP_NAME="my-game"
 DIFFICULTY="easy;medium;hard"
 PORT=4545
+
 EMAIL_HOST=smtp.mailtrap.io
 EMAIL_PORT=2525
 EMAIL_USER="user@example.com"
@@ -43,17 +75,19 @@ EMAIL_PASS="password123"
 EMAIL_SIGNATURE="Thanks,
 ${APP_NAME} Team
 Contact: support@gmail.com"
+
 USER1="hello-user-1"
 USER2="hello-user-2"
 USER3="hello-user-3"
 ```
 
-1. env to name the key linked with a field
-2. env_def used to set default value for a field
-3. env_delim used to specify delimeter for spliting the string for environment variable
-4. env_prefix to specify prefix for a group of fields
-5. env_keys to specify list of keys to be binded to the field.  Wilcard * can also be used to specify prefix.
+---
 
-## ENV Format
+## ENV File Parsing
 
-Go env manager can parse env files with quotes, double quotes, back ticks. It also supports substituion of varaibles in the env file.
+Go Env Manager supports:
+
+* Quotes: `'single'`, `"double"`, `` `backtick` ``
+* Variable substitution inside values (`${VAR_NAME}`)
+* Flexible delimiters for lists and maps
+* Multi-line values

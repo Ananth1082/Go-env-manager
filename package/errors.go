@@ -42,37 +42,37 @@ func (e *EnvError) Error() string {
 	return fmt.Sprintf("error occured: %s\n\t%v", e.Type.toString(), e.Err)
 }
 
-func NewEnvError(kind ErrType, err error) *EnvError {
+func newEnvError(kind ErrType, err error) *EnvError {
 	return &EnvError{
 		Type: kind,
 		Err:  err,
 	}
 }
 
-func NewKeyNotFoundErr(key string) *EnvError {
-	return NewEnvError(
+func newKeyNotFoundErr(key string) *EnvError {
+	return newEnvError(
 		KEY_NOT_FOUND_ERROR,
 		fmt.Errorf("key %s is not in enviroment varaibles", key))
 }
 
-func NewInvalidUsageErr(field, use string) *EnvError {
-	return NewEnvError(
+func newInvalidUsageErr(field, use string) *EnvError {
+	return newEnvError(
 		INVALID_USAGE_ERROR,
 		fmt.Errorf("%s for field %s", field, use))
 }
 
-func NewUnSupportedTypeError(field, typeName string) *EnvError {
-	return NewInvalidUsageErr(
+func newUnSupportedTypeError(field, typeName string) *EnvError {
+	return newInvalidUsageErr(
 		field,
 		fmt.Sprintf("%s is not supported in field %s", field, typeName))
 }
 
-func NewTypeCastErr(value, castType string, err error) *EnvError {
-	return NewEnvError(
+func newTypeCastErr(value, castType string, err error) *EnvError {
+	return newEnvError(
 		TYPE_CAST_ERROR,
 		fmt.Errorf("%s cannot be casted to type %s (%v)", value, castType, err))
 }
 
-func NewNoKeysForMapErr(field string) *EnvError {
-	return NewInvalidUsageErr("empty key in env_keys tag", field)
+func newNoKeysForMapErr(field string) *EnvError {
+	return newInvalidUsageErr("empty key in env_keys tag", field)
 }
