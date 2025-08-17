@@ -35,8 +35,10 @@ func subValues(envMap map[string]string, str string) string {
 	return str
 }
 
-func envParser(file string) map[string]string {
-	envMap := make(map[string]string)
+func envParser(file string, envMap map[string]string) map[string]string {
+	if envMap == nil {
+		envMap = make(map[string]string)
+	}
 	var key, value strings.Builder
 	isWithinQuotes := false
 	quoteRune := rune(-1)

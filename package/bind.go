@@ -1,8 +1,6 @@
 package env_manager
 
 import (
-	"fmt"
-	"log"
 	"os"
 	"reflect"
 	"slices"
@@ -22,49 +20,6 @@ const (
 	STRUCT_KEYWORD_IGNORE = "ignore"
 	STRUCT_KEYWORD_ALL    = "*"
 )
-
-// EnvManager is a struct that holds the file name and silent mode
-// It is used to manage environment variables from a file
-type EnvManager struct {
-	File   string
-	EnvMap map[string]string
-	Logger log.Logger
-}
-
-func NewEnvManager(file string) *EnvManager {
-	if file == "" {
-		panic("file name cannot be empty")
-	}
-	if _, err := os.Stat(file); os.IsNotExist(err) {
-		panic(fmt.Sprintf("file %s does not exist", file))
-	}
-	return &EnvManager{
-		File:   file,
-		Logger: *log.Default(),
-	}
-}
-
-func (e *EnvManager) GetEnvMap() map[string]string {
-	content := openFile(e.File)
-	return envParser(content)
-}
-
-// Loads the env variables from an env file
-// supports use of quotes, double quotes, backticks, and variable substituion
-func (e *EnvManager) LoadEnv() {
-	e.EnvMap = e.GetEnvMap()
-	loadEnvMap(e.EnvMap)
-}
-
-// Binds a pointer varaible to env varaibles. The assignment is done based on the value provided in
-// the field tag 'env'
-// example: cat struct{foo string `env:"FOO"`} gets its field foo binded to the varaible 'FOO' 's value
-func (e *EnvManager) BindEnv(envStructPtr any) {
-	e.Logger.Println("Binding environment variable")
-	if err := e.bindEnvWithPrefix(envStructPtr, ""); err != nil {
-		e.Logger.Println(err)
-	}
-}
 
 func (e *EnvManager) bindEnvWithPrefix(envStructPtr any, prefix string) error {
 	// the varaible provided must be a struct ptr
