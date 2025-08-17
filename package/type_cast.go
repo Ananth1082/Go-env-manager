@@ -10,7 +10,7 @@ import (
 func castString(value string, target reflect.Type, delim string) (reflect.Value, error) {
 	var castValue reflect.Value
 	var err error
-	if isPrimitive(target) {
+	if isPrimitiveKind(target) {
 		castValue, err = castStringToPrimitive(value, target)
 	} else if target.Kind() == reflect.Slice {
 		castValue, err = castStringToSlice(value, target.Elem(), delim)

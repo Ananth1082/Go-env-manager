@@ -3,6 +3,7 @@ package env_manager
 import (
 	"slices"
 	"testing"
+	"time"
 )
 
 func assertEqual[T comparable](t *testing.T, actual, expected T, msg string) {
@@ -33,7 +34,7 @@ func TestGetEnvMapForComplexFile(t *testing.T) {
 	envManger := NewEnvManager("../test_data/complex.env")
 	envMap := envManger.GetEnvMap()
 
-	assertEqual(t, len(envMap), 25, "Invalid number of env variables parsed")
+	assertEqual(t, len(envMap), 2, "Invalid number of env variables parsed")
 	assertEqual(t, envMap["APP_NAME"], "MultiLineApp", "Invalid value for variable APP_NAME from env")
 
 	assertEqual(t, envMap["WELCOME_MESSAGE"], `Welcome to $APP_NAME!
@@ -51,11 +52,12 @@ email TEXT UNIQUE NOT NULL
 type EnvData struct {
 	IgnoreField int `env:"ignore"`
 
-	AppName  *string  `env:"APP_NAME"`
-	Version  string   `env:"VERSION"`
-	Options  []string `env:"OPTIONS" env_delim:";"`
-	Colors   []string `env:"COLORS"`
-	AppCount int      `env:"APP_COUNT" env_def:"69"`
+	AppName  *string       `env:"APP_NAME"`
+	Version  string        `env:"VERSION"`
+	Options  []string      `env:"OPTIONS" env_delim:";"`
+	Colors   []string      `env:"COLORS"`
+	AppCount int           `env:"APP_COUNT" env_def:"69"`
+	Expiry   time.Duration `env:"EXPIRY"`
 
 	Email struct {
 		Host      string

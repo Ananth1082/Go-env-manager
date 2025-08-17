@@ -69,7 +69,7 @@ func pascaleToSSnakeCase(str string) string {
 }
 
 // IsPrimitive checks whether the type is a Go primitive type.
-func isPrimitive(t reflect.Type) bool {
+func isPrimitiveKind(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
@@ -89,4 +89,8 @@ func getDelim(field reflect.StructField) string {
 		delim = ","
 	}
 	return delim
+}
+
+func checkType(typ reflect.Type, fullTypeName string) bool {
+	return typ.PkgPath()+"."+typ.Name() == fullTypeName
 }

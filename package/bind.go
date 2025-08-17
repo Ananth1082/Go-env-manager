@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -99,6 +100,8 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		return nil
 	}
 
+	envVarName := getNameFromTag(envTag, field.Name)
+	e.Logger.Println(field.Name, "type: ", fieldType)
 	if fieldType.Kind() == reflect.Map {
 		if mapValue, err := e.castMap(field, fieldPrefix); err != nil {
 			return err
@@ -106,6 +109,16 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 			e.setField(i, field.Name, envStructPtr, mapValue)
 		}
 		return nil
+	} else if checkType(fieldType, "time.Duration") {
+		e.Logger.Println("Hello")
+		key, valStr := e.getEnvValue(fieldPrefix, envVarName)
+		if t, err := time.ParseDuration(valStr); err != nil {
+			e.Logger.Println("Error")
+			panic(err)
+		} else {
+			e.setField(i, key, envStructPtr, reflect.ValueOf(t))
+			return nil
+		}
 	} else if fieldType.Kind() == reflect.Struct {
 		structPtr := reflect.New(fieldType)
 		if err := e.bindEnvWithPrefix(structPtr.Interface(), fieldPrefix); err != nil {
@@ -124,8 +137,6 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		}
 	}
 
-	envVarName := getNameFromTag(envTag, field.Name)
-
 	key, valStr := e.getEnvValue(fieldPrefix, envVarName)
 	if valStr == "" {
 		if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
@@ -138,13 +149,13 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 			}
 		}
 	}
-	if isPrimitive(fieldType) {
+	if isPrimitiveKind(fieldType) {
 		if value, err := castStringToPrimitive(valStr, fieldType); err != nil {
 			return newTypeCastErr(valStr, fieldType.Name(), err)
 		} else {
 			e.setField(i, field.Name, envStructPtr, value)
 		}
-	} else if fieldType.Kind() == reflect.Slice && isPrimitive(fieldType.Elem()) {
+	} else if fieldType.Kind() == reflect.Slice && isPrimitiveKind(fieldType.Elem()) {
 		delim := getDelim(field)
 		if value, err := castStringToSlice(valStr, fieldType.Elem(), delim); err != nil {
 			return newTypeCastErr(valStr, fieldType.Name(), err)
