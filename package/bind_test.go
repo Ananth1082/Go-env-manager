@@ -10,7 +10,7 @@ import (
 func TestParsingForSimpleEnvFile(t *testing.T) {
 	emap := make(map[string]string)
 
-	if err := newEnvParser("../test_data/simple.env", emap).parse(); err != nil {
+	if err := newTestParser(t, "../test_data/simple.env").parse(); err != nil {
 		t.Error(err)
 	}
 
@@ -22,8 +22,8 @@ func TestParsingForSimpleEnvFile(t *testing.T) {
 
 // Testing parsing logic for complex features like multi-line strings, varaibles
 func TestParsingForComplexFile(t *testing.T) {
-	envManger := NewEnvManager("../test_data/complex.env")
-	envMap := envManger.GetEnvMap()
+	envManager := newTestManager(t, "../test_data/complex.env")
+	envMap := envManager.GetEnvMap()
 
 	assertEqual(t, len(envMap), 25, "Invalid number of env variables parsed")
 	assertEqual(t, envMap["APP_NAME"], "MultiLineApp", "Invalid value for variable APP_NAME from env")
@@ -48,7 +48,7 @@ type TestBindEnvForDefaultKeyNamesStruct struct {
 
 func TestBindEnvForDefaultKeyNames(t *testing.T) {
 	envBinder := new(TestBindEnvForDefaultKeyNamesStruct)
-	envManager := NewEnvManager("../test_data/simple.env")
+	envManager := newTestManager(t, "../test_data/simple.env")
 	envManager.LoadEnv()
 
 	envManager.BindEnv(envBinder)
@@ -67,7 +67,7 @@ type TestBindEnvForDefaultValueStruct struct {
 
 func TestBindEnvForDefaultValue(t *testing.T) {
 	envBinder := new(TestBindEnvForDefaultValueStruct)
-	envManager := NewEnvManager("../test_data/simple.env")
+	envManager := newTestManager(t, "../test_data/simple.env")
 	envManager.LoadEnv()
 
 	envManager.BindEnv(envBinder)
@@ -110,7 +110,10 @@ type TestBindEnvForComplexDataStruct struct {
 func TestBindEnvForComplexData(t *testing.T) {
 	envBinder := new(TestBindEnvForComplexDataStruct)
 
-	envManger := NewEnvManager("../test_data/complex.env")
+	envManger, err := NewEnvManager("../test_data/complex.env")
+	if err != nil {
+		t.Error(err)
+	}
 	envManger.LoadEnv()
 
 	envManger.BindEnv(envBinder)

@@ -16,36 +16,21 @@ func (e *envParser) getEnv(key string) (string, bool) {
 	}
 }
 
-func openFile(fileName string) string {
+func openFile(fileName string) (string, error) {
 	content, err := os.ReadFile(fileName)
 	if err != nil {
-		panic(err)
+		return "", newConfigError(fmt.Errorf("error reading file %s: %v", fileName, err))
 	}
-	return string(content)
+	return string(content), nil
 }
 
-func loadEnvMap(envMap map[string]string) {
+func loadEnvMap(envMap map[string]string) error {
 	for key, value := range envMap {
 		if err := os.Setenv(key, value); err != nil {
-			panic(fmt.Sprintf("Error setting env variable %s: %v", key, err))
+			return newConfigError(fmt.Errorf("error setting env variable %s: %v", key, err))
 		}
 	}
-
-}
-
-func getNameFromTag(tags []string, fieldName string) string {
-	if len(tags) == 0 {
-		return ""
-	}
-	for _, part := range tags {
-		if part != "" && !isKeyWord(part) {
-			return part
-		}
-	}
-
-	//fallback to pascale to snake case if no env tag is provided
-	fallback := pascalToSnakeCase(fieldName)
-	return fallback
+	return nil
 }
 
 func isKeyWord(tagEntry string) bool {

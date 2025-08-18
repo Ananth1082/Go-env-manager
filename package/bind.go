@@ -52,10 +52,11 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 	}
 
 	if slices.Contains(envTag, STRUCT_KEYWORD_IGNORE) {
+		e.Log(LOW, "Ignoring field %s", field.Name)
 		return nil
 	}
 
-	envVarName := getNameFromTag(envTag, field.Name)
+	envVarName := e.getNameFromTag(envTag, field.Name)
 
 	if fieldType.Kind() == reflect.Map {
 		if mapValue, err := e.castMap(field, fieldPrefix); err != nil {
@@ -96,6 +97,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 	key, valStr, err := e.getEnvValue(fieldPrefix, envVarName, getDefaultValue(field))
 	if err != nil {
 		if field.Type.Kind() == reflect.Pointer {
+			e.Log(LOW, "Pointer field %s not found in environment variables, setting to nil", field.Name)
 			e.setField(i, field.Name, envStructPtr, reflect.Zero(fieldType))
 			return nil
 		} else {
@@ -176,15 +178,14 @@ func (e *EnvManager) castMap(field reflect.StructField, fieldPrefix string) (ref
 
 func (e *EnvManager) setField(i int, key string, ptr any, value reflect.Value) {
 	field := reflect.ValueOf(ptr).Elem().Field(i)
-	e.logger.Println("SET", key)
 	field.Set(value)
+	e.Log(MED, "Set field %s with value %v", key, value.Interface())
 }
 
 func (e *EnvManager) getEnvValue(prefix, key string, defValue *string) (string, string, error) {
 	if prefix != "" {
 		key = prefix + "_" + key
 	}
-	e.logger.Println("Accessed environment varaible", key)
 	values, exists := os.LookupEnv(key)
 	if !exists {
 		if defValue != nil {
@@ -192,5 +193,18 @@ func (e *EnvManager) getEnvValue(prefix, key string, defValue *string) (string, 
 		}
 		return key, "", newKeyNotFoundErr(key)
 	}
+	e.Log(LOW, "Found env variable %s with value %s", key, values)
 	return key, values, nil
+}
+
+func (e *EnvManager) getNameFromTag(tags []string, fieldName string) string {
+	for _, part := range tags {
+		if part != "" && !isKeyWord(part) {
+			return part
+		}
+	}
+	e.Log(LOW, "No env tag found for field %s, using default naming convention", fieldName)
+	//fallback to pascale to snake case if no env tag is provided
+	fallback := pascalToSnakeCase(fieldName)
+	return fallback
 }

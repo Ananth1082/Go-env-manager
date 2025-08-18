@@ -8,10 +8,9 @@ import (
 )
 
 const (
-	SILENT = iota
-	// Not implemented yet
-	SEXY
+	DEBUG = iota + 1
 	DEFAULT
+	SILENT
 )
 
 // EnvManager is a struct that holds the file name and silent mode
@@ -23,14 +22,14 @@ type EnvManager struct {
 	logMode int
 }
 
-func NewEnvManager(files ...string) *EnvManager {
+func NewEnvManager(files ...string) (*EnvManager, error) {
 	// if no files are provided then .env is checked
 	if len(files) == 0 {
 		files = []string{".env"}
 	}
 	for _, file := range files {
 		if _, err := os.Stat(file); os.IsNotExist(err) {
-			panic(fmt.Sprintf("file %s does not exist", file))
+			return nil, newConfigError(fmt.Errorf("file %s does not exist", file))
 		}
 	}
 
@@ -38,17 +37,18 @@ func NewEnvManager(files ...string) *EnvManager {
 	l.SetFlags(0)
 
 	return &EnvManager{
-		envMap: make(map[string]string),
-		files:  files,
-		logger: l,
-	}
+		envMap:  make(map[string]string),
+		files:   files,
+		logger:  l,
+		logMode: DEFAULT,
+	}, nil
 }
 
 func (e *EnvManager) SetMode(mode int) *EnvManager {
 	switch mode {
 	case SILENT:
 		e.logger = log.New(io.Discard, "", log.LstdFlags)
-	case DEFAULT, SEXY:
+	case DEFAULT, DEBUG:
 		e.logMode = mode
 	default:
 		e.logMode = DEFAULT
@@ -70,23 +70,29 @@ func (e *EnvManager) GetEnvMap() map[string]string {
 // supports use of quotes, double quotes, backticks, and variable substituion
 func (e *EnvManager) LoadEnv() {
 	e.parseEnv()
-	loadEnvMap(e.envMap)
+	if err := loadEnvMap(e.envMap); err != nil {
+		e.Log(HIGH, "Error loading environment variables: %v", err)
+	}
 }
 
 // Binds a pointer varaible to env varaibles. The assignment is done based on the value provided in
 // the field tag 'env'
 // example: cat struct{foo string `env:"FOO"`} gets its field foo binded to the varaible 'FOO' 's value
 func (e *EnvManager) BindEnv(envStructPtr any) {
-	e.logger.Println("Binding environment variable")
+	e.Log(MED, "Binding environment variables")
 	if err := e.bindEnvWithPrefix(envStructPtr, ""); err != nil {
-		e.logger.Fatalln(err)
+		e.Log(HIGH, "Error binding environment variable: %v", err)
 	}
 }
 
 func (e *EnvManager) parseEnv() {
 	for _, file := range e.files {
-		if err := newEnvParser(file, e.envMap).parse(); err != nil {
-			e.logger.Fatalln(err)
+		if parser, err := newEnvParser(file, e.envMap); err == nil {
+			if err := parser.parse(); err != nil {
+				e.Log(HIGH, "Error parsing env file %s: %v", file, err)
+			}
+		} else {
+			e.Log(HIGH, "Error creating env parser for file %s: %v", file, err)
 		}
 	}
 }

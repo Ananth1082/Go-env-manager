@@ -17,10 +17,14 @@ type envParser struct {
 	visited map[string]bool
 }
 
-func newEnvParser(file string, env map[string]string) *envParser {
+func newEnvParser(file string, env map[string]string) (*envParser, error) {
+	content, err := openFile(file)
+	if err != nil {
+		return nil, err
+	}
 	p := &envParser{
 		file:    file,
-		content: openFile(file),
+		content: content,
 		visited: make(map[string]bool),
 	}
 	if env == nil {
@@ -28,7 +32,7 @@ func newEnvParser(file string, env map[string]string) *envParser {
 	} else {
 		p.env = env
 	}
-	return p
+	return p, nil
 }
 
 func (e *envParser) setEnv(key, value string) {

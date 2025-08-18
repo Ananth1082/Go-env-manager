@@ -1,7 +1,7 @@
 package env_manager
 
 import (
-	"fmt"
+	"errors"
 	"reflect"
 	"strconv"
 	"strings"
@@ -15,10 +15,10 @@ func castString(value string, target reflect.Type, delim string) (reflect.Value,
 	} else if target.Kind() == reflect.Slice {
 		castValue, err = castStringToSlice(value, target.Elem(), delim)
 	} else {
-		panic(fmt.Sprintf("error: type %s not supported", target.Kind()))
+		return reflect.Value{}, errors.New("unsupported type")
 	}
 	if err != nil {
-		return reflect.Value{}, err
+		return reflect.Value{}, newTypeCastErr(value, target.Name(), err)
 	} else {
 		return castValue, nil
 	}
@@ -78,10 +78,10 @@ func castStringToPrimitive(value string, target reflect.Type) (reflect.Value, er
 	case reflect.Float64:
 		castValue, err = strconv.ParseFloat(value, 64)
 	default:
-		err = fmt.Errorf("error: type %s not supported", target.Kind())
+		err = errors.New("unsupported type")
 	}
 	if err != nil {
-		return reflect.Value{}, err
+		return reflect.Value{}, newTypeCastErr(value, target.Name(), err)
 	}
 	return reflect.ValueOf(castValue), nil
 }
