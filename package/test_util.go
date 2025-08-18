@@ -23,7 +23,7 @@ func newTestManager(t *testing.T, file string) *EnvManager {
 }
 
 func newTestParser(t *testing.T, file string) *envParser {
-	parser, err := newEnvParser(file, nil)
+	parser, err := newEnvParser(file, make(map[string]string))
 	if err != nil {
 		t.Error(err)
 	}

@@ -8,16 +8,15 @@ import (
 
 // Testing the parsing logic for simple env file
 func TestParsingForSimpleEnvFile(t *testing.T) {
-	emap := make(map[string]string)
-
-	if err := newTestParser(t, "../test_data/simple.env").parse(); err != nil {
+	p := newTestParser(t, "../test_data/simple.env")
+	if err := p.parse(); err != nil {
 		t.Error(err)
 	}
 
-	assertEqual(t, len(emap), 6, "Invalid number of env variables parsed")
-	assertEqual(t, emap["APP_NAME"], "MyCoolApp", "Invalid App name from env")
-	assertEqual(t, emap["APP_PORT"], "8080", "Invalid port from env")
-	t.Log("Env variables: ", len(emap))
+	assertEqual(t, len(p.env), 6, "Invalid number of env variables parsed")
+	assertEqual(t, p.env["APP_NAME"], "MyCoolApp", "Invalid App name from env")
+	assertEqual(t, p.env["APP_PORT"], "8080", "Invalid port from env")
+	t.Log("Env variables: ", len(p.env))
 }
 
 // Testing parsing logic for complex features like multi-line strings, varaibles
@@ -123,4 +122,5 @@ func TestBindEnvForComplexData(t *testing.T) {
 	assertEqual(t, envBinder.AppCount, 69, "Invalid AppCount")
 	t.Log(envBinder)
 	t.Log(*envBinder.TLS)
+	t.Error()
 }
