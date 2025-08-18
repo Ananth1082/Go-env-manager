@@ -83,7 +83,7 @@ type TestNilPointerFieldStruct struct {
 type TestBindEnvForComplexDataStruct struct {
 	IgnoreField int `env:"ignore"`
 
-	AppName  *string       `env:"APP_NAME"`
+	AppName  *string       `env:"APP_NAME" env_def:"Singleline app"`
 	Version  string        `env:"VERSION"`
 	Options  []string      `env:"OPTIONS" env_delim:";"`
 	Colors   []string      `env:"COLORS"`

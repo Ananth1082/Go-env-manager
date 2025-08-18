@@ -8,11 +8,11 @@ import (
 	"unicode"
 )
 
-func getEnv(envMap map[string]string, key string) string {
-	if value, ok := envMap[key]; ok {
-		return value
+func (e *envParser) getEnv(key string) (string, bool) {
+	if value, ok := e.env[key]; ok {
+		return value, true
 	} else {
-		return os.Getenv(key)
+		return os.LookupEnv(key)
 	}
 }
 
@@ -99,4 +99,13 @@ func getDelim(field reflect.StructField) string {
 
 func checkType(typ reflect.Type, fullTypeName string) bool {
 	return typ.PkgPath()+"."+typ.Name() == fullTypeName
+}
+
+func getDefaultValue(field reflect.StructField) *string {
+	value, exists := field.Tag.Lookup(STRUCT_TAG_DEFAULT_VALUE)
+	if exists {
+		return &value
+	} else {
+		return nil
+	}
 }

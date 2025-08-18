@@ -6,16 +6,22 @@ import (
 	"unicode"
 )
 
+const (
+	MAX_SUB_DEPTH = 10
+)
+
 type envParser struct {
 	file    string
 	content string
 	env     map[string]string
+	visited map[string]bool
 }
 
 func newEnvParser(file string, env map[string]string) *envParser {
 	p := &envParser{
 		file:    file,
 		content: openFile(file),
+		visited: make(map[string]bool),
 	}
 	if env == nil {
 		p.env = make(map[string]string)
@@ -25,35 +31,56 @@ func newEnvParser(file string, env map[string]string) *envParser {
 	return p
 }
 
-func (e *envParser) Add(key, value string) {
+func (e *envParser) setEnv(key, value string) {
 	e.env[strings.TrimSpace(key)] = strings.TrimSpace(value)
 }
 
-func (e *envParser) subValues(str string) (string, error) {
-	start, open, close := 0, 0, 0
-	variable := ""
-	n := len(str)
-	for start < n {
-		open = strings.Index(str[start:], "${")
+// TODO: create a better method to check if string contains substitution for the cached value
+func (e *envParser) subValues(str string, depth int) (string, error) {
+	if depth > MAX_SUB_DEPTH {
+		return "", fmt.Errorf("maximum substitution depth %d exceeded", MAX_SUB_DEPTH)
+	}
+	start := 0
+	for {
+		open := strings.Index(str[start:], "${")
 		if open == -1 {
-			// no '${' found hence come out of loop
 			break
 		}
 		open += start + 2
-		close = strings.Index(str[open:], "}")
+		close := strings.Index(str[open:], "}")
 		if close == -1 {
-			//no '}' found hence come out of loop
 			break
 		}
 		close += open
-		variable = str[open:close]
-		val := getEnv(e.env, variable)
-		if val == "" {
-			return "", fmt.Errorf("variable not found")
-		} else {
-			str = str[:open-2] + val + str[close+1:]
+		varName := str[open:close]
+
+		if e.visited[varName] {
+			return "", newConfigError(fmt.Errorf("circular reference detected for variable %s", varName))
 		}
-		start = close + 1
+
+		if cached, ok := e.getEnv(varName); ok && !strings.Contains(cached, "${") {
+			str = str[:open-2] + cached + str[close+1:]
+			start = open - 2 + len(cached)
+			continue
+		}
+
+		e.visited[varName] = true
+		val, ok := e.getEnv(varName)
+		if !ok {
+			return "", newConfigError(fmt.Errorf("variable %s not found", varName))
+		}
+
+		subVal, err := e.subValues(val, depth+1)
+		if err != nil {
+			return "", err
+		}
+
+		e.setEnv(varName, subVal)
+
+		str = str[:open-2] + subVal + str[close+1:]
+		delete(e.visited, varName)
+
+		start = open - 2 + len(subVal)
 	}
 	return str, nil
 }
@@ -141,13 +168,13 @@ func (e *envParser) parse() error {
 			}
 		}
 		if !isWithinQuotes && key.String() != "" {
-			e.Add(key.String(), value.String())
+			e.setEnv(key.String(), value.String())
 		}
 	}
 
 	// substitute all variable values
 	for k, v := range e.env {
-		if subValue, err := e.subValues(v); err != nil {
+		if subValue, err := e.subValues(v, 0); err != nil {
 			return err
 		} else {
 			e.env[k] = subValue

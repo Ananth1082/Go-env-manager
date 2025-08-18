@@ -56,7 +56,7 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 	}
 
 	envVarName := getNameFromTag(envTag, field.Name)
-	e.logger.Println(field.Name, "type: ", fieldType)
+
 	if fieldType.Kind() == reflect.Map {
 		if mapValue, err := e.castMap(field, fieldPrefix); err != nil {
 			return err
@@ -65,9 +65,12 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		}
 		return nil
 	} else if checkType(fieldType, "time.Duration") {
-		key, valStr := e.getEnvValue(fieldPrefix, envVarName)
+		key, valStr, err := e.getEnvValue(fieldPrefix, envVarName, getDefaultValue(field))
+		if err != nil {
+			return err
+		}
 		if t, err := time.ParseDuration(valStr); err != nil {
-			panic(err)
+			return err
 		} else {
 			e.setField(i, key, envStructPtr, reflect.ValueOf(t))
 			return nil
@@ -90,18 +93,16 @@ func (e *EnvManager) handleField(envStructPtr any, envStructType reflect.Type, i
 		}
 	}
 
-	key, valStr := e.getEnvValue(fieldPrefix, envVarName)
-	if valStr == "" {
-		if valStr = envStructType.Field(i).Tag.Get(STRUCT_TAG_DEFAULT_VALUE); valStr == "" {
-			if fieldType.Kind() == reflect.Pointer {
-				// if the field is a pointer type, we can set it to nil
-				e.setField(i, field.Name, envStructPtr, reflect.Zero(fieldType))
-				return nil
-			} else {
-				return newKeyNotFoundErr(key)
-			}
+	key, valStr, err := e.getEnvValue(fieldPrefix, envVarName, getDefaultValue(field))
+	if err != nil {
+		if field.Type.Kind() == reflect.Pointer {
+			e.setField(i, field.Name, envStructPtr, reflect.Zero(fieldType))
+			return nil
+		} else {
+			return newKeyNotFoundErr(key)
 		}
 	}
+
 	if isPrimitiveKind(fieldType) {
 		if value, err := castStringToPrimitive(valStr, fieldType); err != nil {
 			return newTypeCastErr(valStr, fieldType.Name(), err)
@@ -158,12 +159,10 @@ func (e *EnvManager) castMap(field reflect.StructField, fieldPrefix string) (ref
 		if key == "" {
 			return emptyValue, newNoKeysForMapErr(field.Name)
 		}
-		key, val := e.getEnvValue(fieldPrefix, key)
-		if val == "" {
-			val = field.Tag.Get(STRUCT_TAG_DEFAULT_VALUE)
-			if val == "" {
-				return emptyValue, newInvalidUsageErr(field.Name, "no default value given")
-			}
+
+		key, val, err := e.getEnvValue(fieldPrefix, key, getDefaultValue(field))
+		if err != nil {
+			return emptyValue, err
 		}
 
 		if elemValue, err := castString(val, field.Type.Elem(), delim); err != nil {
@@ -181,10 +180,17 @@ func (e *EnvManager) setField(i int, key string, ptr any, value reflect.Value) {
 	field.Set(value)
 }
 
-func (e *EnvManager) getEnvValue(prefix, key string) (string, string) {
+func (e *EnvManager) getEnvValue(prefix, key string, defValue *string) (string, string, error) {
 	if prefix != "" {
 		key = prefix + "_" + key
 	}
 	e.logger.Println("Accessed environment varaible", key)
-	return key, os.Getenv(key)
+	values, exists := os.LookupEnv(key)
+	if !exists {
+		if defValue != nil {
+			return key, *defValue, nil
+		}
+		return key, "", newKeyNotFoundErr(key)
+	}
+	return key, values, nil
 }

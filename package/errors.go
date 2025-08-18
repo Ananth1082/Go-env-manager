@@ -11,6 +11,7 @@ const (
 	INVALID_USAGE_ERROR
 	TYPE_CAST_ERROR
 	PARSER_ERROR
+	CONFIG_ERROR
 	UNEXPECTED_ERROR
 )
 
@@ -19,6 +20,7 @@ const (
 	INVALID_USAGE_MSG    = "Invalid usage"
 	TYPE_CAST_ERROR_MSG  = "Invalid value for the type"
 	PARSER_ERROR_MSG     = "Invalid env file syntax"
+	CONFIG_ERROR_MSG     = "Configuration error"
 	UNEXPECTED_ERROR_MSG = "Unexpected error"
 )
 
@@ -30,6 +32,8 @@ func (err *ErrType) toString() string {
 		return INVALID_USAGE_MSG
 	case TYPE_CAST_ERROR:
 		return TYPE_CAST_ERROR_MSG
+	case CONFIG_ERROR:
+		return CONFIG_ERROR_MSG
 	default:
 		return UNEXPECTED_ERROR_MSG
 	}
@@ -49,6 +53,12 @@ func newEnvError(kind ErrType, err error) *EnvError {
 		Type: kind,
 		Err:  err,
 	}
+}
+
+func newConfigError(err error) *EnvError {
+	return newEnvError(
+		CONFIG_ERROR,
+		err)
 }
 
 func newKeyNotFoundErr(key string) *EnvError {
